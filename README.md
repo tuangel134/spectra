@@ -63,18 +63,42 @@ Además de programar, funciona como **asistente de terminal general**: diagnosti
 
 ## 🚀 Instalación
 
+### Un solo comando
+
+**Linux (cualquier distro) y macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tuangel134/spectra/main/install.sh | bash
+```
+
+**Windows 10/11 (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/tuangel134/spectra/main/install.ps1 | iex
+```
+
+El instalador clona/actualiza Spectra, lo compila y deja el comando `spectra` en tu PATH. Solo necesitas **git** y **Node.js >= 20** (te avisa si falta alguno).
+
+### Manual (desde el código)
+
 ```bash
 git clone https://github.com/tuangel134/spectra.git
 cd spectra
-npm install          # compila automáticamente (script prepare)
-
-# Deja el comando `spectra` disponible globalmente:
-npm link
-# o, sin permisos de root (Linux/macOS):
-ln -sf "$(pwd)/dist/cli.js" ~/.local/bin/spectra
+npm install     # compila automáticamente (script prepare)
+npm link        # deja `spectra` disponible globalmente
 ```
 
-En **Windows** usa `npm link` (o `npm install -g .`) desde PowerShell o CMD; el binario `spectra` queda en el PATH de npm automáticamente.
+### App de escritorio
+
+`spectra desktop` funciona sin instalar nada extra: abre una ventana nativa si hay binario, o cae a tu navegador en modo app. Para la **ventana nativa ligera** (WebView del SO, ~unos MB) descarga el binario de tu plataforma desde la [página de Releases](https://github.com/tuangel134/spectra/releases):
+
+| SO | Binario |
+|---|---|
+| Linux | `spectra-desktop-linux-x86_64` |
+| macOS (Apple Silicon) | `spectra-desktop-macos-arm64` |
+| Windows | `spectra-desktop-windows-x86_64.exe` |
+
+Colócalo en `desktop-native/target/release/` (o compílalo con `npm run desktop:build` si tienes Rust) y `spectra desktop` lo detecta automáticamente.
 
 ## ⚡ Inicio rápido
 
