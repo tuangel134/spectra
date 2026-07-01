@@ -14,8 +14,6 @@ import { createHash } from "node:crypto"
 export interface ProgressInputs {
   /** Index of the phase being worked on. */
   phase: number
-  /** Total file changes observed so far in the run. */
-  filesChanged: number
   /** Completed phase count. */
   phasesCompleted: number
   /** Signature of the most recent verification failure (empty if passing). */
@@ -24,7 +22,11 @@ export interface ProgressInputs {
 
 /** Build a stable signature from the inputs that matter for progress. */
 export function progressSignature(inputs: ProgressInputs): string {
-  const raw = `${inputs.phase}|${inputs.filesChanged}|${inputs.phasesCompleted}|${inputs.lastErrorDigest}`
+  // NOTE: deliberately does NOT include a monotonic run-total file counter.
+  // A fix pass almost always touches a file, so folding that in would make the
+  // signature change every pass and the stall detector would never trip. Real
+  // progress is: advancing phases or changing which error we're stuck on.
+  const raw = `${inputs.phase}|${inputs.phasesCompleted}|${inputs.lastErrorDigest}`
   return createHash("sha1").update(raw).digest("hex").slice(0, 16)
 }
 

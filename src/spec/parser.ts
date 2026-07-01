@@ -97,6 +97,13 @@ export function serializeTasks(title: string, tasks: Task[]): string {
     const box =
       task.status === "completed" ? "x" : task.status === "in_progress" ? "~" : " "
     lines.push(`- [${box}] Task ${task.id}: ${task.title}`)
+    // Preserve the description: emit each line indented so a round-trip through
+    // parseTasks() restores it verbatim (must not collide with meta lines).
+    if (task.description) {
+      for (const dline of task.description.split("\n")) {
+        lines.push(`  ${dline}`)
+      }
+    }
     lines.push(`  - Dependencies: [${task.dependencies.join(", ")}]`)
     lines.push(`  - Files: [${task.files.join(", ")}]`)
     lines.push(`  - Validation: ${task.validation}`)

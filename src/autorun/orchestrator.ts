@@ -124,6 +124,11 @@ export class Autopilot {
   private async drive(state: AutorunState): Promise<AutorunState> {
     this.running = true
     this.cancelled = false
+    // Rehydrate run-total counters so the attempts ceiling and anti-stall
+    // survive a crash/resume instead of silently resetting to zero.
+    this.totalAttempts = state.totalAttempts ?? 0
+    this.filesChanged = state.filesChanged ?? 0
+    this.polishReviews = state.polishReviews ?? 0
     this.startWatchdog()
     try {
       if (state.phases.length === 0) await this.plan(state)
@@ -386,7 +391,6 @@ export class Autopilot {
       // Anti-stall: are we seeing the same failure again?
       const sig = progressSignature({
         phase: phase.index,
-        filesChanged: this.filesChanged,
         phasesCompleted: state.phases.filter((p) => p.status === "completed").length,
         lastErrorDigest: errorDigest(failure),
       })
@@ -417,7 +421,16 @@ export class Autopilot {
   private async finalGate(state: AutorunState): Promise<void> {
     const cwd = this.deps.rt.config.projectRoot
     const commands = detectVerifyCommands(cwd, this.cfg.verifyCommands)
-
+    if (commands.length === 0) {
+      // No build/test/lint could be detected — we can still scan for skeletons
+      // and structural issues, but "green" here is much weaker. Make that
+      // explicit rather than silently declaring victory with zero execution.
+      this.emit(
+        "warn",
+        "No verification commands detected (no build/test/lint). Delivery relies only on " +
+          "skeleton/structural/LSP scans — add a test or build script for real acceptance.",
+      )
+    }
     for (let attempt = 0; attempt < this.cfg.maxFixAttempts; attempt++) {
       if (this.cancelled) return
       state.status = "verifying"
@@ -712,6 +725,10 @@ export class Autopilot {
     this.watchdog?.beat()
     if (this.state) {
       this.state.heartbeatAt = Date.now()
+      // Persist run-total counters so a crash/resume keeps the attempts ceiling.
+      this.state.totalAttempts = this.totalAttempts
+      this.state.filesChanged = this.filesChanged
+      this.state.polishReviews = this.polishReviews
       this.store.save(this.state)
     }
   }

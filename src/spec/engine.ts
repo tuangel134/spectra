@@ -5,7 +5,7 @@
  */
 
 import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve, relative, isAbsolute } from "node:path"
 
 import type { Task, Wave, SpecType, SpecMeta, TaskStatus } from "./types.js"
 import { DependencyGraph } from "./graph.js"
@@ -56,7 +56,14 @@ export class SpecEngine {
   }
 
   specDir(id: string): string {
-    return join(this.baseDir, id)
+    // Guard against path traversal: `id` can come from unsanitized user input
+    // (e.g. `/run <id>`). The resolved directory MUST stay inside baseDir.
+    const dir = resolve(this.baseDir, id)
+    const rel = relative(this.baseDir, dir)
+    if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+      throw new Error(`Invalid spec id: ${id}`)
+    }
+    return dir
   }
 
   /** List all specs on disk (most recent first). */

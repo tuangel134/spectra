@@ -19,6 +19,10 @@ import {
 
 const DEFAULT_TIMEOUT = 30_000
 
+/** Hard cap on the unparsed stdout buffer (8 MiB) to bound memory against a
+ *  server that never emits a newline or floods an enormous single line. */
+const MAX_BUFFER_BYTES = 8 * 1024 * 1024
+
 export interface McpTransport {
   connect(): Promise<void>
   listTools(): Promise<McpToolDef[]>
@@ -72,6 +76,10 @@ export class McpStdioClient implements McpTransport {
 
     child.stdout.setEncoding("utf-8")
     child.stdout.on("data", (chunk: string) => this.onData(chunk))
+    // A write to a dead subprocess emits 'error' (EPIPE) on the stream; without
+    // a listener that becomes an unhandled 'error' event and crashes the whole
+    // process. Swallow it — failAll (via 'exit') already rejects pending calls.
+    child.stdin.on("error", () => {})
     // Drain stderr — an unread stderr pipe fills its OS buffer and deadlocks a
     // chatty server (it blocks on write while we wait forever for stdout).
     child.stderr.setEncoding("utf-8")
@@ -132,6 +140,12 @@ export class McpStdioClient implements McpTransport {
         clearTimeout(p.timer)
         p.resolve(msg)
       }
+    }
+    // Cap the pending buffer: a misbehaving server that never emits a newline
+    // (or floods a huge line) must not grow this string without bound. Keeping
+    // the tail preserves any in-progress final line for the next chunk.
+    if (this.buffer.length > MAX_BUFFER_BYTES) {
+      this.buffer = this.buffer.slice(-MAX_BUFFER_BYTES)
     }
   }
 

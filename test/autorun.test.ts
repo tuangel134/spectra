@@ -188,9 +188,12 @@ test("StallDetector resets the counter when progress changes the signature", () 
 })
 
 test("progressSignature is stable for identical inputs and varies otherwise", () => {
-  const base = { phase: 1, filesChanged: 3, phasesCompleted: 1, lastErrorDigest: "x" }
+  const base = { phase: 1, phasesCompleted: 1, lastErrorDigest: "x" }
   assert.equal(progressSignature(base), progressSignature({ ...base }))
-  assert.notEqual(progressSignature(base), progressSignature({ ...base, filesChanged: 4 }))
+  // A different error, phase, or completed-count is real progress/change.
+  assert.notEqual(progressSignature(base), progressSignature({ ...base, lastErrorDigest: "y" }))
+  assert.notEqual(progressSignature(base), progressSignature({ ...base, phase: 2 }))
+  assert.notEqual(progressSignature(base), progressSignature({ ...base, phasesCompleted: 2 }))
 })
 
 test("errorDigest normalizes volatile tokens so cosmetic diffs match", () => {

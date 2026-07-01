@@ -7,7 +7,7 @@
  */
 
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http"
-import { randomBytes } from "node:crypto"
+import { randomBytes, timingSafeEqual } from "node:crypto"
 import * as nodeFs from "node:fs"
 import * as nodePath from "node:path"
 
@@ -80,9 +80,22 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
+/** Max accepted request body size (1 MiB). Prevents an unbounded body from
+ *  exhausting memory (OOM DoS) since we buffer the whole payload. */
+const MAX_BODY_BYTES = 1024 * 1024
+
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(chunk as Buffer)
+  let total = 0
+  for await (const chunk of req) {
+    const buf = chunk as Buffer
+    total += buf.length
+    if (total > MAX_BODY_BYTES) {
+      req.destroy()
+      throw new Error("request body too large")
+    }
+    chunks.push(buf)
+  }
   if (chunks.length === 0) return {}
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf-8")) as Record<string, unknown>
@@ -111,9 +124,16 @@ export function createServer(rt: Runtime, options: ServerOptions) {
 
   function checkAuth(req: IncomingMessage, url: URL): boolean {
     if (options.noAuth || !authToken) return true
+    // Constant-time compare to avoid leaking the token via response timing.
+    const expected = Buffer.from(authToken)
+    const timingSafe = (candidate: string | null): boolean => {
+      if (!candidate) return false
+      const got = Buffer.from(candidate)
+      return got.length === expected.length && timingSafeEqual(got, expected)
+    }
     const hdr = req.headers.authorization
-    if (hdr === `Bearer ${authToken}`) return true
-    if (url.searchParams.get("token") === authToken) return true
+    if (hdr?.startsWith("Bearer ") && timingSafe(hdr.slice(7))) return true
+    if (timingSafe(url.searchParams.get("token"))) return true
     return false
   }
 
@@ -128,10 +148,16 @@ export function createServer(rt: Runtime, options: ServerOptions) {
     // ----- Web UI -----
     compile("GET", "/", (_req, res) => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
-      // Inject the auth token so the embedded JS can pass it in fetch headers.
+      // Inject the auth token so the embedded JS can pass it in fetch headers —
+      // but ONLY on a loopback bind, where any local client is already trusted.
+      // On a non-loopback bind (0.0.0.0 / LAN) baking the token into the page
+      // would hand a valid credential to any anonymous network client that GETs
+      // `/`, defeating auth entirely. There the operator must supply the token
+      // explicitly via `?token=<token>` (shown in the server startup log).
+      const injected = isLoopback ? authToken : ""
       const html = WEB_HTML.replace(
         "const jget=",
-        `const __TOKEN="${authToken}";\nconst jget=`,
+        `const __TOKEN=${JSON.stringify(injected)}||new URLSearchParams(location.search).get("token")||"";\nconst jget=`,
       )
       res.end(html)
     }),

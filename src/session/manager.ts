@@ -8,8 +8,14 @@
 import type { ChatMessage } from "../provider/types.js"
 import type { Session, Snapshot, FileChange, ToolLogEntry } from "./types.js"
 import { generateId } from "../util/id.js"
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs"
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, existsSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
+
+/** Cap on retained in-memory ephemeral (isolated/sub) sessions. Without this
+ *  every subagent/spec/autorun turn leaks a Session for the process lifetime. */
+const MAX_EPHEMERAL = 100
+/** Cap on retained snapshots per session (bounds undo-history memory). */
+const MAX_SNAPSHOTS = 200
 
 export class SessionManager {
   private readonly sessions = new Map<string, Session>()
@@ -45,6 +51,24 @@ export class SessionManager {
 
   /** Persist a session to disk (debounced: at most once per 2s per session). */
   private persistTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  /** Write a session file atomically (temp + rename) so a crash mid-write can
+   *  never leave a truncated JSON that gets silently skipped on reload. */
+  private writeSessionFile(dir: string, session: Session): void {
+    mkdirSync(dir, { recursive: true })
+    const final = join(dir, `${session.id}.json`)
+    const tmp = join(dir, `.${session.id}.${process.pid}.tmp`)
+    try {
+      writeFileSync(tmp, JSON.stringify(session), "utf-8")
+      renameSync(tmp, final)
+    } catch (err) {
+      if (existsSync(tmp)) {
+        try { unlinkSync(tmp) } catch { /* best-effort cleanup */ }
+      }
+      throw err
+    }
+  }
+
   private persist(session: Session): void {
     if (!this.persistDir) return
     // Ephemeral (isolated) sessions are never written to disk.
@@ -55,8 +79,7 @@ export class SessionManager {
     const timer = setTimeout(() => {
       this.persistTimers.delete(session.id)
       try {
-        mkdirSync(dir, { recursive: true })
-        writeFileSync(join(dir, `${session.id}.json`), JSON.stringify(session), "utf-8")
+        this.writeSessionFile(dir, session)
       } catch {
         /* best-effort */
       }
@@ -84,10 +107,26 @@ export class SessionManager {
       this.persistTimers.delete(session.id)
     }
     try {
-      mkdirSync(this.persistDir, { recursive: true })
-      writeFileSync(join(this.persistDir, `${session.id}.json`), JSON.stringify(session), "utf-8")
+      this.writeSessionFile(this.persistDir, session)
     } catch {
       /* best-effort */
+    }
+  }
+
+  /** Evict the oldest ephemeral sessions once we exceed the retention cap, so
+   *  long-lived processes (servers, long autoruns) don't leak them forever. */
+  private evictEphemeral(): void {
+    if (this.ephemeral.size <= MAX_EPHEMERAL) return
+    // Set preserves insertion order, so the leading ids are the oldest.
+    const overflow = this.ephemeral.size - MAX_EPHEMERAL
+    let removed = 0
+    for (const id of this.ephemeral) {
+      if (removed >= overflow) break
+      if (id === this.currentId) continue
+      this.ephemeral.delete(id)
+      this.sessions.delete(id)
+      this.snapshots.delete(id)
+      removed++
     }
   }
 
@@ -112,7 +151,10 @@ export class SessionManager {
     // makeCurrent=false so they don't hijack the user's active chat session,
     // and they are kept ephemeral (in-memory only, never persisted).
     if (makeCurrent) this.currentId = session.id
-    else this.ephemeral.add(session.id)
+    else {
+      this.ephemeral.add(session.id)
+      this.evictEphemeral()
+    }
     this.persist(session)
     return session
   }
@@ -202,6 +244,8 @@ export class SessionManager {
     }
     const list = this.snapshots.get(sessionId) ?? []
     list.push(snap)
+    // Bound undo history so a very long session can't grow snapshots forever.
+    if (list.length > MAX_SNAPSHOTS) list.splice(0, list.length - MAX_SNAPSHOTS)
     this.snapshots.set(sessionId, list)
     return snap
   }

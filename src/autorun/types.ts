@@ -67,6 +67,13 @@ export interface AutorunState {
   recoveries: number
   /** Consecutive iterations with no detectable progress (anti-stall). */
   stallCount: number
+  /** Total phase fix/verify attempts across the whole run (persisted so the
+   *  attempts ceiling survives crash/resume instead of resetting to 0). */
+  totalAttempts?: number
+  /** Total file changes observed across the run (persisted for resume). */
+  filesChanged?: number
+  /** Completeness/polish reviews run at the final gate (persisted for resume). */
+  polishReviews?: number
   /** Opaque signature of the last observed progress state. */
   progressSignature?: string
   events: AutorunEvent[]

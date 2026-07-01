@@ -80,9 +80,11 @@ export class AutorunStore {
     return states.sort((a, b) => b.createdAt - a.createdAt)
   }
 
-  /** The most recent run that has not finished — a candidate for resuming. */
+  /** The most recent run that has not finished — a candidate for resuming.
+   *  A `failed` run (e.g. hit the attempts ceiling) is NOT auto-resumable:
+   *  resuming it would just re-trip the same terminal condition. */
   latestResumable(): AutorunState | null {
-    return this.list().find((s) => !s.finished) ?? null
+    return this.list().find((s) => !s.finished && s.status !== "failed") ?? null
   }
 
   /** Append an event to a state (bounded ring) and persist. */
