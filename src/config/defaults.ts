@@ -1,0 +1,65 @@
+import type { SpectraConfig } from "./types.js"
+
+/** Default configuration applied when no user config is present. */
+export const DEFAULT_CONFIG: SpectraConfig = {
+  model: "free/deepseek-v4-flash-free",
+  small_model: "free/deepseek-v4-flash-free",
+  provider: {},
+  permission: {
+    read: "allow",
+    edit: "allow",
+    glob: "allow",
+    grep: "allow",
+    bash: "allow",
+    webfetch: "allow",
+  },
+  agent: {},
+  spec: {
+    testAfterTask: true,
+    maxParallelTasks: 4,
+    approvalMode: "wave",
+    outputDir: ".spectra/specs",
+    detect: "ask",
+  },
+  server: {
+    port: 4096,
+    hostname: "127.0.0.1",
+    cors: ["http://localhost:5173"],
+  },
+  compaction: {
+    auto: true,
+    prune: false,
+    reserved: 10000,
+  },
+  headroom: {
+    enabled: true,
+    minTokens: 200,
+    reversible: true,
+    maxStored: 256,
+    persist: true,
+  },
+  autorun: {
+    enabled: true,
+    reviewPasses: 3,
+    maxFixAttempts: 5,
+    stallThreshold: 3,
+    heartbeatStaleMs: 180000,
+    maxTotalAttempts: 200,
+    verifyCommands: [],
+    parallel: true,
+    maxParallel: 8,
+    previewUrl: "",
+  },
+  mcp: {},
+  routing: {
+    mode: "manual",
+    assignments: {},
+    autochange: { enabled: false, fallbacks: [] },
+    tiers: {},
+  },
+  autoupdate: true,
+  snapshot: true,
+  autoApprove: true,
+  instructions: [],
+  theme: "prism",
+}

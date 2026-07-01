@@ -1,0 +1,67 @@
+{
+  "name": "spectra-vscode",
+  "displayName": "Spectra",
+  "description": "Spec-driven AI coding agent — Full-Stack autopilot, MCP, skills, and more, inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "spectra",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["AI", "Programming Languages", "Other"],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "spectra.open",
+        "title": "Spectra: Open Panel",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "spectra.startServer",
+        "title": "Spectra: Start Server"
+      },
+      {
+        "command": "spectra.stopServer",
+        "title": "Spectra: Stop Server"
+      }
+    ],
+    "configuration": {
+      "title": "Spectra",
+      "properties": {
+        "spectra.command": {
+          "type": "string",
+          "default": "spectra",
+          "description": "Command used to launch Spectra (e.g. 'spectra' or 'node /path/to/dist/cli.js')."
+        },
+        "spectra.port": {
+          "type": "number",
+          "default": 4096,
+          "description": "Port the Spectra server listens on."
+        },
+        "spectra.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the Spectra server when opening the panel."
+        }
+      }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "spectra.open",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

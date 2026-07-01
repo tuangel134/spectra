@@ -1,0 +1,210 @@
+// Spectra configuration example.
+// Copy to spectra.jsonc and customize. Docs: https://spectra.dev/docs/config
+{
+  // === MODEL ===
+  // Format: "provider/model-id"
+  "model": "opencode/claude-sonnet-4-6",
+  "small_model": "opencode/claude-haiku-4-5",
+
+  // === PROVIDERS ===
+  "provider": {
+    // OpenCode Zen — use your existing subscription.
+    // Get an API key at opencode.ai/auth, then export OPENCODE_API_KEY.
+    // Spectra auto-routes each Zen model to the correct endpoint:
+    //   claude*/qwen* -> /messages (anthropic)
+    //   gpt*          -> /responses (openai)
+    //   everything    -> /chat/completions (compatible)
+    "opencode": {
+      "options": { "apiKey": "{env:OPENCODE_API_KEY}" }
+    }
+
+    // Custom API with a base URL (OpenAI-compatible):
+    // "my-api": {
+    //   "sdk": "openai-compatible",
+    //   "baseURL": "https://your-host.example/v1",
+    //   "options": { "apiKey": "{env:MY_API_KEY}", "timeout": 600000 },
+    //   "models": {
+    //     "my-model": { "name": "My Model", "maxTokens": 128000 }
+    //   }
+    // }
+
+    // Anthropic direct:
+    // "anthropic": { "options": { "apiKey": "{env:ANTHROPIC_API_KEY}" } }
+
+    // OpenAI direct:
+    // "openai": { "options": { "apiKey": "{env:OPENAI_API_KEY}" } }
+
+    // Ollama (local, no key needed):
+    // "ollama": { "sdk": "openai-compatible", "baseURL": "http://localhost:11434/v1" }
+
+    // Freebuff (Codebuff's free, ad-supported models): no login, no API key.
+    // 1) Install + run once:  npm i -g freebuff  &&  freebuff   (auto-provisions a token)
+    // 2) Run the freebuff2api proxy (OpenAI-compatible) and point baseURL at it.
+    //    Spectra auto-detects the token from ~/.config/manicode/credentials.json.
+    // "freebuff": { "baseURL": "http://localhost:8080/v1" }
+  },
+
+  // === PERMISSIONS ===
+  // Levels: "allow" | "ask" | "deny". Bash and edit accept per-pattern rules.
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "grep": "allow",
+    "glob": "allow",
+    "webfetch": "allow",
+    "bash": {
+      "*": "allow",
+      "rm -rf *": "deny",
+      "git push --force*": "ask"
+    }
+  },
+
+  // === AGENTS ===
+  // Override built-ins (build, plan, spec, review, explore) or add your own.
+  "agent": {
+    "plan": {
+      "description": "Read-only analysis and planning",
+      "permission": { "edit": "deny", "write": "deny", "bash": "ask" }
+    }
+  },
+
+  // === SPEC ENGINE ===
+  "spec": {
+    "testAfterTask": true,
+    "maxParallelTasks": 4,
+    "approvalMode": "wave",
+    "outputDir": ".spectra/specs",
+    // Auto-detect build requests in chat: "ask" offers questions / auto / reject,
+    // "auto" lets Spectra pick sensible specs on its own, "off" disables detection.
+    "detect": "ask"
+  },
+
+  // === SERVER (spectra serve) ===
+  "server": {
+    "port": 4096,
+    "hostname": "127.0.0.1",
+    "cors": ["http://localhost:5173"]
+  },
+
+  // === COMPACTION ===
+  "compaction": {
+    "auto": true,
+    "prune": false,
+    "reserved": 10000
+  },
+
+  // === HEADROOM (token compression) ===
+  // Compresses bulky tool output (JSON/logs) before it reaches the model.
+  // Reversible: the model can call headroom_retrieve to get the original.
+  "headroom": {
+    "enabled": true,
+    "minTokens": 200,
+    "reversible": true,
+    "maxStored": 256,
+    "persist": true
+  },
+
+  // === AUTORUN (Long-Running / Full-Stack autopilot) ===
+  // Plans a spec, splits it into phases, builds + verifies + self-heals until
+  // the whole project ships with zero errors and no skeleton code.
+  "autorun": {
+    "enabled": true,
+    "reviewPasses": 3,
+    "maxFixAttempts": 5,
+    "stallThreshold": 3,
+    "heartbeatStaleMs": 180000,
+    "maxTotalAttempts": 200,
+    "verifyCommands": [],   // empty = auto-detect from package.json
+    "parallel": false,      // swarm: run independent phase tasks concurrently
+    "maxParallel": 3,
+    "previewUrl": ""        // e.g. "http://localhost:3000" — enables screenshot+vision UI verification (needs Playwright)
+  },
+
+  // === MODEL ROUTING (semi-auto + Autochange failover) ===
+  // mode: "manual" (one model) · "semi" (a model per task kind) ·
+  //       "auto" (cheapest capable model per step).
+  // autochange: when the active model runs out of tokens/quota, Spectra
+  // switches to the next fallback automatically (up to 3) — long tasks never
+  // stop. Great with the Full-Stack autopilot.
+  "routing": {
+    "mode": "manual",
+    // semi mode — assign a model per task kind:
+    "assignments": {
+      // "plan": "anthropic/claude-opus-4-8",
+      // "build": "anthropic/claude-opus-4-8",
+      // "verify": "free/deepseek-v4-flash-free"
+    },
+    "autochange": {
+      "enabled": false,
+      "fallbacks": []   // e.g. ["opencode/claude-sonnet-4-6", "free/deepseek-v4-flash-free"]
+    }
+  },
+
+  // === MCP SERVERS ===
+  // Model Context Protocol servers. Their tools are exposed to the agent as
+  // mcp_<server>_<tool>. Also reads .spectra/mcp.json, .opencode/mcp.json and
+  // .cursor/mcp.json (Claude/OpenCode/Cursor-compatible).
+  "mcp": {
+    // stdio server (local process):
+    // "postgres": { "command": "uvx", "args": ["mcp-server-postgres"], "autoApprove": [] },
+    // remote HTTP/SSE server:
+    // "remote": { "type": "http", "url": "https://host/mcp", "headers": { "Authorization": "Bearer {env:TOKEN}" } }
+  },
+
+  // === SKILLS ===
+  // No config needed. Drop a folder with a SKILL.md (YAML frontmatter:
+  // name + description, then markdown instructions) into one of:
+  //   .spectra/skills/<name>/SKILL.md   (Spectra)
+  //   .claude/skills/<name>/SKILL.md    (Claude Code)
+  //   .opencode/skill/<name>/SKILL.md   (OpenCode)
+  //   ~/.spectra/skills/<name>/SKILL.md (global)
+  // The agent discovers them via the `skill` tool (list / use).
+
+  // === PLUGINS ===
+  // Drop a .js/.mjs file in .spectra/plugins that default-exports a function
+  // receiving { registerTool, projectRoot, log } to add custom tools.
+
+  // === LSP (diagnostics) ===
+  // The `diagnostics` tool uses installed language servers
+  // (typescript-language-server, pyright, gopls, rust-analyzer). Install the
+  // ones you need; the autopilot gate uses them to block type errors.
+
+  // === SUBAGENTS & GIT ===
+  // The `task` tool delegates to subagents (explore/review/…) in isolated
+  // context. git_status / git_diff / git_commit / git_branch provide safe,
+  // structured git operations (no commits to main without confirmation).
+
+  // === SUBSCRIPTION LOGIN ===
+  // `spectra auth login copilot` runs an OAuth device flow and stores the
+  // token in ~/.config/spectra/auth.json.
+
+  // === PROJECT MEMORY ===
+  // Persistent cross-session memory in .spectra/memory.json. The agent stores
+  // durable decisions/conventions/APIs via the `memory` tool and recalls them
+  // instead of re-learning the project. View/forget entries in the Memory tab.
+
+  // === TIMELINE ===
+  // Every edit turn creates a restore point. The Timeline tab lets you rewind
+  // the whole project to any earlier snapshot.
+
+  // === EVALS (auto-growing) ===
+  // `spectra eval` runs capability checks + regressions. When the autopilot
+  // finishes a project green, it records its passing verify commands as
+  // regression evals in .spectra/evals/regressions.json.
+
+  // === ACP ===
+  // `spectra acp` runs Spectra as an Agent Client Protocol agent over stdio so
+  // ACP editors (e.g. Zed) can drive it.
+
+  // === VISUAL VERIFICATION ===
+  // Set autorun.previewUrl to your running app's URL; the autopilot will
+  // screenshot it and ask a vision model to confirm the UI before delivery.
+  // Requires Playwright: npm i -D playwright && npx playwright install chromium.
+  // The `browser` tool also lets the agent open URLs and capture screenshots.
+
+  // === VS CODE EXTENSION ===
+  // See vscode-extension/ — embeds the Spectra UI in an editor panel.
+
+  "autoupdate": true,
+  "snapshot": true
+}
