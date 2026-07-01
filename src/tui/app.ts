@@ -1401,9 +1401,11 @@ export class TuiApp {
       "  /init                 Generate AGENTS.md for this project",
       "  /theme [id]           Change theme (prism, aurora, ember, mono)",
       "  /details  /thinking   Toggle tool details / reasoning blocks",
+      "  /<name>               Your custom commands from .spectra/commands/*.md",
       "  /exit                 Quit (aliases: /quit, /q)",
       "",
       "Input:  @path attaches a file · !cmd runs a shell command",
+      "Agent:  searches the web, tracks a live todo list, and auto-reads AGENTS.md/CLAUDE.md + steering",
       "Keys:   tab switch agent · esc cancel prompt · ctrl+c quit",
     ].join("\n")
   }

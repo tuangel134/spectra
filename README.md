@@ -177,6 +177,14 @@ Cualquier endpoint compatible con OpenAI:
 }
 ```
 
+## 🧠 Capacidades del agente
+
+- **Búsqueda web** — la tool `websearch` descubre páginas (keyless por defecto vía DuckDuckGo; usa `TAVILY_API_KEY` o `BRAVE_API_KEY` si están definidas), luego `webfetch` las lee.
+- **Lista de tareas viva** — `todowrite`/`todoread`: el agente planifica pasos y marca su progreso, visible para ti.
+- **Steering automático** — el agente lee y respeta `AGENTS.md`, `CLAUDE.md`, `.cursorrules` y `.spectra/steering/*.md` (inclusión `always`) en **cada** turno.
+- **`@archivo`** — menciona archivos en tu mensaje (`revisa @src/app.ts`) y su contenido se adjunta como contexto automáticamente.
+- **Comandos personalizados** — crea `.spectra/commands/<nombre>.md` (con `$ARGUMENTS` / `$1`…`$9`) y úsalo como `/<nombre>` en la TUI.
+
 ## 📐 Desarrollo guiado por especificaciones
 
 El comando `/spec` (o `spectra spec`) genera tres documentos:
