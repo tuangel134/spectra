@@ -11,6 +11,7 @@
 
 import { color } from "../util/logger.js"
 import { visibleWidth } from "./ansi.js"
+import { renderMarkdown } from "./markdown.js"
 import { centerLine, indent, drawBox, boxWidth } from "./box.js"
 import { LOGO_LINES, LOGO_COMPACT, LOGO_WIDTH } from "./logo.js"
 import {
@@ -43,6 +44,8 @@ export interface ViewState {
   mask?: boolean
   theme?: string
   tokens?: { input: number; output: number }
+  /** Estimated USD cost of this session so far. */
+  cost?: number
   /** Active slash-command menu (shown when typing "/"). */
   menu?: { items: { command: string; description: string; args?: string }[]; index: number }
   version: string
@@ -93,9 +96,10 @@ function footerBar(state: ViewState, theme: Theme): string {
   const barBg = darken(theme.accent, 0.22)
   const fg: [number, number, number] = [200, 200, 200]
   const tok = state.tokens ? `${state.tokens.input}↑ ${state.tokens.output}↓` : "0↑ 0↓"
+  const cost = state.cost && state.cost >= 0.00005 ? ` · $${state.cost.toFixed(4)}` : ""
   const mode = state.connected ? "● ready" : "○ offline"
   const left = ` ${mode}`
-  const right = `${tok} · v${state.version} `
+  const right = `${tok}${cost} · v${state.version} `
   const gap = Math.max(1, state.cols - visibleWidth(left) - visibleWidth(right))
   return bg(barBg, fg, padTo(left + " ".repeat(gap) + right, state.cols))
 }
@@ -235,7 +239,10 @@ function renderMessage(msg: RenderMessage, width: number, theme: Theme): string[
   if (msg.role === "user") return wrap(accent(theme, "› ") + msg.text, width)
   if (msg.role === "tool") return wrap(color.gray("  " + msg.text), width)
   if (msg.role === "system") return wrap(color.yellow(msg.text), width)
-  return wrap(color.gray("◆ ") + msg.text, width)
+  // Assistant: render Markdown (framed code blocks, headers, bullets), indented
+  // under a spectrum marker.
+  const body = renderMarkdown(msg.text, Math.max(8, width - 2), theme)
+  return body.map((line, i) => (i === 0 ? accent(theme, "◆ ") : "  ") + line)
 }
 
 /** Compose the chat screen: header, scrolling messages, composer, footer. */

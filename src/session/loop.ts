@@ -335,12 +335,7 @@ export class AgentLoop {
       }
       const client = this.deps.providers.client(resolved)
       try {
-        const request = makeRequest(resolved)
-        // Stream token-by-token when the caller wants it and the provider can.
-        const result =
-          handlers.onTextChunk && typeof client.completeStream === "function"
-            ? await client.completeStream(request, (t) => handlers.onTextChunk!(t))
-            : await client.complete(request)
+        const result = await this.completeOnce(client, resolved, makeRequest, handlers, modelString)
         if (i > 0) handlers.report(`↪ Autochange active: running on ${modelString}.`)
         return result
       } catch (err) {
@@ -361,6 +356,50 @@ export class AgentLoop {
       }
     }
     throw lastError ?? new Error("No model available to complete the request.")
+  }
+
+  /**
+   * Run a single model's completion with bounded retry + exponential backoff on
+   * TRANSIENT errors (network blips, 5xx, generic 429). Quota/exhaustion errors
+   * are NOT retried here — they propagate so the caller can fail over to the
+   * next model. A stream that already emitted text is never retried (that would
+   * duplicate output).
+   */
+  private async completeOnce(
+    client: Provider,
+    resolved: ResolvedModel,
+    makeRequest: (model: ResolvedModel) => CompletionRequest,
+    handlers: LoopHandlers,
+    modelString: string,
+  ): Promise<CompletionResult> {
+    const MAX_RETRIES = 3
+    let lastErr: unknown
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      let emitted = false
+      try {
+        const request = makeRequest(resolved)
+        if (handlers.onTextChunk && typeof client.completeStream === "function") {
+          return await client.completeStream(request, (t) => {
+            emitted = true
+            handlers.onTextChunk!(t)
+          })
+        }
+        return await client.complete(request)
+      } catch (err) {
+        lastErr = err
+        if (isExhaustionError(err)) throw err // handled by model failover
+        const canRetry = attempt < MAX_RETRIES && isTransientError(err) && !emitted
+        if (!canRetry) throw err
+        const retryAfterMs =
+          err instanceof ProviderError && err.retryAfter ? err.retryAfter * 1000 : 0
+        const backoff = Math.max(400 * 2 ** attempt + Math.floor(Math.random() * 250), retryAfterMs)
+        handlers.report(
+          `⚠ ${modelString}: ${(err as Error).message.slice(0, 80)} — retry ${attempt + 1}/${MAX_RETRIES} in ${(backoff / 1000).toFixed(1)}s`,
+        )
+        await new Promise((r) => setTimeout(r, backoff))
+      }
+    }
+    throw lastErr
   }
 
   private async maybeCompact(
@@ -445,6 +484,18 @@ export class AgentLoop {
       return { output: message }
     }
   }
+}
+
+/** True for errors worth retrying on the SAME model (network blips, 5xx, 429). */
+function isTransientError(err: unknown): boolean {
+  if (err instanceof ProviderError) {
+    if (err.status === undefined) return true // network/transport error
+    return err.status === 429 || err.status >= 500
+  }
+  const msg = (err as Error)?.message?.toLowerCase?.() ?? ""
+  return /timeout|timed out|econnreset|econnrefused|enotfound|network|fetch failed|socket hang up|eai_again|aborted/.test(
+    msg,
+  )
 }
 
 /** Levenshtein-based closest match, used to suggest a tool name on typos. */

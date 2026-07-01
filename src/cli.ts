@@ -268,9 +268,12 @@ async function main(): Promise<void> {
     case "serve":
     case "web": {
       const envPort = process.env["SPECTRA_PORT"] ? Number(process.env["SPECTRA_PORT"]) : undefined
-      const serverConfig = envPort
-        ? { ...rt.config.config.server, port: envPort }
-        : rt.config.config.server
+      const envHost = process.env["SPECTRA_HOST"] // e.g. 0.0.0.0 in Docker/LAN
+      const serverConfig = {
+        ...rt.config.config.server,
+        ...(envPort ? { port: envPort } : {}),
+        ...(envHost ? { hostname: envHost } : {}),
+      }
       const server = createServer(rt, serverConfig)
       await server.listen()
       const { hostname, port } = serverConfig

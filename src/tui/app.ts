@@ -23,7 +23,7 @@ import { filterCommands } from "../commands.js"
 import { runSpecWorkflow, runSpecExecution, generateClarifyingQuestions, autoAnswerQuestions } from "../workflow/spec-workflow.js"
 import { detectSpecIntent } from "../spec/detect.js"
 import type { ClarifyQuestion, Clarification } from "../spec/clarify.js"
-import { summarizeCost } from "../util/cost.js"
+import { summarizeCost, estimateCost } from "../util/cost.js"
 
 interface ActiveFlow {
   flow: Flow
@@ -136,6 +136,7 @@ export class TuiApp {
     const session = this.chatSession()
     if (session) {
       this.state.tokens = { input: session.usage.inputTokens, output: session.usage.outputTokens }
+      this.state.cost = estimateCost(session.model, session.usage.inputTokens, session.usage.outputTokens)
     }
     this.screen.render(renderFrame(this.state))
   }
@@ -1005,6 +1006,38 @@ export class TuiApp {
         break
       }
 
+      case "diff": {
+        this.enterChat()
+        const session = this.chatSession()
+        const files = session ? Object.values(session.changedFiles) : []
+        if (files.length === 0) {
+          this.pushMessage("system", "No file changes this session.")
+          break
+        }
+        for (const f of files) {
+          this.pushMessage("system", `— ${f.path} —`)
+          this.pushMessage("tool", diffText(f.before, f.after))
+        }
+        break
+      }
+
+      case "timeline": {
+        this.enterChat()
+        const session = this.chatSession()
+        const snaps = session ? this.rt.sessions.timeline(session.id) : []
+        if (snaps.length === 0) {
+          this.pushMessage("system", "No snapshots yet. Edits create restore points — use /undo to revert.")
+          break
+        }
+        const lines = snaps.map(
+          (s, i) =>
+            `${i + 1}. ${new Date(s.timestamp).toLocaleTimeString()} · ${s.changes.length} file(s): ` +
+            s.changes.map((c) => c.path).slice(0, 4).join(", "),
+        )
+        this.pushMessage("system", `Timeline (${snaps.length} snapshot(s)):\n${lines.join("\n")}`)
+        break
+      }
+
       case "undo": {
         const session = this.chatSession()
         const snap = session ? this.rt.sessions.popSnapshot(session.id) : null
@@ -1386,6 +1419,7 @@ export class TuiApp {
       "  /run <spec-id>        Execute a spec in parallel waves",
       "  /autorun <goal>       Full-Stack Autopilot: build a whole project autonomously",
       "  /undo  /redo          Revert / restore file changes",
+      "  /diff  /timeline      Show session changes / list restore points",
       "  /supervise <on|off>   Approve edits/writes/commands before they run",
       "",
       "  Sessions & projects:",
@@ -1409,4 +1443,34 @@ export class TuiApp {
       "Keys:   tab switch agent · esc cancel prompt · ctrl+c quit",
     ].join("\n")
   }
+}
+
+/**
+ * A compact line diff for /diff: trims common prefix/suffix and shows the
+ * changed middle as -/+ lines (bounded). Plain text — the TUI renders it gray.
+ */
+function diffText(before: string | null, after: string | null): string {
+  if (before === null) return `(new file · ${after ? after.split("\n").length : 0} lines)`
+  if (after === null) return "(deleted)"
+  const b = before.split("\n")
+  const a = after.split("\n")
+  let start = 0
+  while (start < b.length && start < a.length && b[start] === a[start]) start++
+  let endB = b.length
+  let endA = a.length
+  while (endB > start && endA > start && b[endB - 1] === a[endA - 1]) {
+    endB--
+    endA--
+  }
+  const removed = b.slice(start, endB)
+  const added = a.slice(start, endA)
+  if (removed.length === 0 && added.length === 0) return "(no textual change)"
+  const MAX = 40
+  const lines: string[] = []
+  for (const l of removed.slice(0, MAX)) lines.push(`- ${l}`)
+  for (const l of added.slice(0, MAX)) lines.push(`+ ${l}`)
+  if (removed.length > MAX || added.length > MAX) {
+    lines.push(`… (${removed.length} removed / ${added.length} added lines total)`)
+  }
+  return lines.join("\n")
 }

@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.github
+.spectra/sessions
+.spectra/evals
+.spectra/autorun
+desktop-native/target
+assets
+*.log

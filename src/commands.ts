@@ -62,6 +62,8 @@ export const COMMANDS: CommandMeta[] = [
   // exec
   { command: "/undo", description: "Revert the last set of file changes", category: "exec" },
   { command: "/redo", description: "Restore reverted file changes", category: "exec" },
+  { command: "/diff", description: "Show this session's file changes", category: "exec" },
+  { command: "/timeline", description: "List restore points (snapshots)", category: "exec" },
 ]
 
 /** Filter commands whose name starts with the typed prefix (the first word). */
