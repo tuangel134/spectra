@@ -119,13 +119,11 @@ async function cmdInit(projectRoot: string): Promise<void> {
       configPath,
       `{
   // Spectra configuration. Docs: https://spectra.dev/docs/config
-  "model": "opencode/claude-sonnet-4-6",
-  "small_model": "opencode/claude-haiku-4-5",
-  "provider": {
-    "opencode": {
-      "options": { "apiKey": "{env:OPENCODE_API_KEY}" }
-    }
-  },
+  // Default: a free model that works with NO API key. Change "model" to a
+  // paid/local provider (e.g. "anthropic/claude-...", "openai/gpt-...",
+  // "ollama/llama3") and add its key under "provider" when you want more power.
+  "model": "free/deepseek-v4-flash-free",
+  "small_model": "free/mimo-v2.5-free",
   "permission": {
     "edit": "allow",
     "bash": { "*": "allow", "rm -rf *": "deny" }
