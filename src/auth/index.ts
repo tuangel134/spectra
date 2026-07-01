@@ -7,10 +7,10 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSync } from "node:fs"
 import { join, dirname } from "node:path"
-import { homedir } from "node:os"
 
 import { runDeviceFlow, DEVICE_FLOW_PRESETS, type DeviceFlowConfig, type DeviceCodeResponse } from "./device.js"
 import { saveProviderKey } from "../config/writer.js"
+import { configDir } from "../util/platform.js"
 
 export * from "./device.js"
 
@@ -19,7 +19,7 @@ interface AuthFile {
 }
 
 function authPath(): string {
-  return join(homedir(), ".config", "spectra", "auth.json")
+  return join(configDir(), "auth.json")
 }
 
 function readAuth(): AuthFile {

@@ -12,14 +12,14 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { join, dirname } from "node:path"
-import { homedir } from "node:os"
 
 import { parseJsonc } from "./loader.js"
+import { configDir } from "../util/platform.js"
 import type { RawConfig } from "./types.js"
 
 /** Absolute path to the global config file. */
 export function globalConfigPath(): string {
-  return join(homedir(), ".config", "spectra", "spectra.jsonc")
+  return join(configDir(), "spectra.jsonc")
 }
 
 /** Absolute path to a project config file. */

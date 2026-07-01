@@ -39,7 +39,9 @@ Esto es una implementación **funcional y verificada**, no una maqueta. Incluye:
 ## Requisitos
 
 - Node.js >= 20
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) recomendado para `grep`/`glob`
+- Funciona en **Linux, macOS y Windows 10/11**
+- [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) recomendado para `grep`/`glob` (hay fallback si no está)
+- En Windows los comandos de shell se ejecutan con `cmd.exe`; Git para Windows habilita las herramientas `git`
 
 ## Instalación
 
@@ -50,9 +52,12 @@ npm install        # compila automáticamente (script prepare)
 
 # Deja el comando `spectra` disponible globalmente:
 npm link
-# o, sin permisos de root:
+# o, sin permisos de root (Linux/macOS):
 ln -sf "$(pwd)/dist/cli.js" ~/.local/bin/spectra
 ```
+
+En **Windows** usa `npm link` (o `npm install -g .`) desde PowerShell o CMD; el
+binario `spectra` queda en el PATH de npm automáticamente.
 
 ## Uso
 

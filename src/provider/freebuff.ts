@@ -17,14 +17,15 @@
 
 import { readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
-import { homedir } from "node:os"
+
+import { configDirFor } from "../util/platform.js"
 
 /** Default OpenAI-compatible endpoint (the freebuff2api proxy). */
 export const FREEBUFF_DEFAULT_BASE = "http://localhost:8080/v1"
 
 /** Where the freebuff CLI stores its auto-provisioned (anonymous) token. */
 function credentialsPath(): string {
-  return join(homedir(), ".config", "manicode", "credentials.json")
+  return join(configDirFor("manicode"), "credentials.json")
 }
 
 /**

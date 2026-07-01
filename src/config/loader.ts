@@ -18,6 +18,7 @@ import { homedir } from "node:os"
 import type { RawConfig, SpectraConfig } from "./types.js"
 import { DEFAULT_CONFIG } from "./defaults.js"
 import { logger } from "../util/logger.js"
+import { configDir as spectraConfigDir, isAbsolutePath } from "../util/platform.js"
 
 /** Strip // line comments and /* block *​/ comments from JSONC text. */
 export function stripJsonComments(text: string): string {
@@ -138,7 +139,7 @@ function resolveString(value: string, configDir: string): string {
     // file
     const filePath = ref.startsWith("~")
       ? join(homedir(), ref.slice(1))
-      : ref.startsWith("/")
+      : isAbsolutePath(ref)
         ? ref
         : resolve(configDir, ref)
     try {
@@ -241,7 +242,7 @@ export function loadConfig(options: LoadConfigOptions = {}): LoadedConfig {
   let merged: SpectraConfig = structuredClone(DEFAULT_CONFIG)
 
   // 1. Global config
-  const globalPath = join(homedir(), ".config", "spectra", "spectra.jsonc")
+  const globalPath = join(spectraConfigDir(), "spectra.jsonc")
   const globalCfg = readConfigFile(globalPath)
   if (globalCfg) {
     merged = deepMerge(merged, globalCfg as Partial<SpectraConfig>)

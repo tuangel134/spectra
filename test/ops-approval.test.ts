@@ -141,3 +141,39 @@ test("a pkexec escalation is gated even under autoApprove", async () => {
     server.close(); rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test("a Windows PowerShell Remove-Item is gated even under autoApprove", async () => {
+  // Cross-platform gate: the permission match is pure string matching, so this
+  // validates the Windows destructive patterns even when the test runs on Linux.
+  const { server, port } = await fakeLlm("bash", { command: "Remove-Item -Recurse -Force C:\\data" })
+  const dir = mkdtempSync(join(tmpdir(), "spectra-winrm-"))
+  try {
+    const rt = createRuntime({ cwd: dir })
+    rt.providers.upsertProvider("fake", { sdk: "openai-compatible", baseURL: `http://127.0.0.1:${port}/v1`, options: { apiKey: "x" } })
+    rt.config.config.model = "fake/m"
+    rt.config.config.spec.detect = "off"
+    rt.config.config.autoApprove = true
+    let asked = ""
+    await rt.loop.run({ sessionId: rt.sessions.create("build", "fake/m").id, agent: rt.agents.get("build")!, userMessage: "clean", handlers: silent((t) => { asked = t }, false) })
+    assert.equal(asked, "bash", "a destructive Remove-Item must ask despite autoApprove")
+  } finally {
+    server.close(); rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a Windows runas elevation is gated even under autoApprove", async () => {
+  const { server, port } = await fakeLlm("bash", { command: "runas /user:Administrator cmd" })
+  const dir = mkdtempSync(join(tmpdir(), "spectra-runas-"))
+  try {
+    const rt = createRuntime({ cwd: dir })
+    rt.providers.upsertProvider("fake", { sdk: "openai-compatible", baseURL: `http://127.0.0.1:${port}/v1`, options: { apiKey: "x" } })
+    rt.config.config.model = "fake/m"
+    rt.config.config.spec.detect = "off"
+    rt.config.config.autoApprove = true
+    let asked = ""
+    await rt.loop.run({ sessionId: rt.sessions.create("ops", "fake/m").id, agent: rt.agents.get("ops")!, userMessage: "elevate", handlers: silent((t) => { asked = t }, false) })
+    assert.equal(asked, "bash", "a runas elevation must ask despite autoApprove")
+  } finally {
+    server.close(); rmSync(dir, { recursive: true, force: true })
+  }
+})

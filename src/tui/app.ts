@@ -476,8 +476,9 @@ export class TuiApp {
     this.paint()
     try {
       const { spawnSync } = await import("node:child_process")
-      const shell = process.env["SHELL"] || "/bin/bash"
-      const result = spawnSync(shell, ["-c", command], {
+      const { shellFor } = await import("../util/platform.js")
+      const { file, args: shellArgs } = shellFor(command)
+      const result = spawnSync(file, shellArgs, {
         cwd: this.rt.config.projectRoot,
         encoding: "utf-8",
         timeout: 60_000,

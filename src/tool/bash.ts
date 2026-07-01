@@ -3,6 +3,7 @@ import { spawn } from "node:child_process"
 import type { Tool, ToolContext, ToolResult } from "./types.js"
 import { objectSchema } from "./types.js"
 import { truncate } from "./fs-helpers.js"
+import { shellFor, detachForGroupKill, killTree } from "../util/platform.js"
 
 const MAX_OUTPUT = 50_000
 const DEFAULT_TIMEOUT = 120_000
@@ -38,14 +39,15 @@ export const bashTool: Tool = {
     ctx.report(`$ ${command}`)
 
     return new Promise<ToolResult>((resolvePromise) => {
-      const shell = process.env["SHELL"] || "/bin/bash"
-      const child = spawn(shell, ["-c", command], {
+      const { file, args: shellArgs } = shellFor(command)
+      const child = spawn(file, shellArgs, {
         cwd: ctx.projectRoot,
         env: process.env,
-        // Own process group so a timeout can kill the whole tree (the shell AND
-        // any child it spawned), not just the shell — otherwise an orphaned
-        // grandchild keeps the output pipe open and stalls completion.
-        detached: true,
+        // Own process group (POSIX) so a timeout can kill the whole tree (the
+        // shell AND any child it spawned), not just the shell — otherwise an
+        // orphaned grandchild keeps the output pipe open and stalls completion.
+        // On Windows the tree is killed via taskkill /t instead (see killTree).
+        ...detachForGroupKill(),
         // Close stdin so an interactive prompt (sudo password, `apt` "[Y/n]",
         // etc.) fails fast on EOF instead of hanging until the timeout.
         stdio: ["ignore", "pipe", "pipe"],
@@ -54,18 +56,13 @@ export const bashTool: Tool = {
       let output = ""
       let killed = false
 
-      const killTree = (): void => {
-        try {
-          if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL")
-          else child.kill("SIGKILL")
-        } catch {
-          child.kill("SIGKILL")
-        }
+      const killTreeNow = (): void => {
+        killTree(child)
       }
 
       const timer = setTimeout(() => {
         killed = true
-        killTree()
+        killTreeNow()
       }, timeout)
 
       child.stdout?.on("data", (chunk: Buffer) => {

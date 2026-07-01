@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process"
 import { matchAnyGlob } from "../util/glob.js"
 import { matchWildcard } from "../util/glob.js"
 import { logger } from "../util/logger.js"
+import { shellFor } from "../util/platform.js"
 
 export type HookEventType =
   | "fileEdited"
@@ -168,8 +169,8 @@ export class HookRegistry {
 
     // runCommand
     const command = this.interpolate(hook.then.command ?? "", event)
-    const shell = process.env["SHELL"] || "/bin/bash"
-    const result = spawnSync(shell, ["-c", command], {
+    const { file, args: shellArgs } = shellFor(command)
+    const result = spawnSync(file, shellArgs, {
       cwd: projectRoot,
       encoding: "utf-8",
       timeout: 60_000,

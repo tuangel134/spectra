@@ -40,7 +40,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test --import tsx ./test/*.test.ts",
+    "test": "node scripts/run-tests.mjs",
     "start": "node dist/cli.js",
     "desktop": "node dist/cli.js desktop",
     "desktop:build": "cd desktop-native && cargo build --release",

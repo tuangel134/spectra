@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process"
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs"
 import { join, relative, extname } from "node:path"
+import { shellFor, detachForGroupKill, killTree } from "../util/platform.js"
 
 export interface CommandResult {
   command: string
@@ -204,18 +205,13 @@ export function runCommand(
 ): Promise<CommandResult> {
   const start = Date.now()
   return new Promise<CommandResult>((resolvePromise) => {
-    const shell = process.env["SHELL"] || "/bin/bash"
-    const child = spawn(shell, ["-c", command], { cwd, env: process.env, detached: true })
+    const { file, args: shellArgs } = shellFor(command)
+    const child = spawn(file, shellArgs, { cwd, env: process.env, ...detachForGroupKill() })
     let output = ""
     let killed = false
     const timer = setTimeout(() => {
       killed = true
-      try {
-        if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL")
-        else child.kill("SIGKILL")
-      } catch {
-        child.kill("SIGKILL")
-      }
+      killTree(child)
     }, timeoutMs)
 
     child.stdout.on("data", (c: Buffer) => (output += c.toString()))

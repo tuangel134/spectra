@@ -13,9 +13,9 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs"
 import { join, dirname } from "node:path"
-import { homedir } from "node:os"
 
 import { FREE_MODELS } from "./zen.js"
+import { configDir } from "../util/platform.js"
 
 export interface FreeModel {
   id: string
@@ -28,7 +28,7 @@ const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000 // refresh at most once a day
 const FETCH_TIMEOUT_MS = 8000
 
 function cachePath(): string {
-  return join(homedir(), ".config", "spectra", "free-models.json")
+  return join(configDir(), "free-models.json")
 }
 
 /** In-memory live list; null until loaded. */

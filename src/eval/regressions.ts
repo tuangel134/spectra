@@ -12,6 +12,7 @@ import { join, dirname } from "node:path"
 import { spawnSync } from "node:child_process"
 
 import type { EvalCase, EvalResult } from "./index.js"
+import { shellFor } from "../util/platform.js"
 
 export interface RegressionCase {
   name: string
@@ -57,7 +58,8 @@ export function addRegressions(projectRoot: string, commands: string[]): Regress
 export function regressionCases(projectRoot: string): EvalCase[] {
   return loadRegressions(projectRoot).map((rc): EvalCase => {
     return (): EvalResult => {
-      const res = spawnSync(process.env["SHELL"] || "/bin/bash", ["-c", rc.command], {
+      const { file, args: shellArgs } = shellFor(rc.command)
+      const res = spawnSync(file, shellArgs, {
         cwd: projectRoot,
         encoding: "utf-8",
         timeout: 600_000,

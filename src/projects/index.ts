@@ -9,7 +9,8 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync } from "node:fs"
 import { join, dirname, basename } from "node:path"
-import { homedir } from "node:os"
+
+import { configDir } from "../util/platform.js"
 
 export interface ProjectEntry {
   path: string
@@ -19,7 +20,7 @@ export interface ProjectEntry {
 }
 
 function storePath(): string {
-  return join(homedir(), ".config", "spectra", "projects.json")
+  return join(configDir(), "projects.json")
 }
 
 function load(): ProjectEntry[] {

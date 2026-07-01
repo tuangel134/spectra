@@ -67,9 +67,36 @@ function findNativeBinary(here: string): string | null {
 
 /** Find a Chromium-family browser that supports `--app=` windows. */
 function findChromiumBrowser(): string | null {
+  if (platform() === "win32") {
+    // Chrome/Edge on Windows live under Program Files / LocalAppData, not PATH.
+    const bases = [
+      process.env["PROGRAMFILES"],
+      process.env["PROGRAMFILES(X86)"],
+      process.env["LOCALAPPDATA"],
+    ].filter((b): b is string => Boolean(b))
+    const rel = [
+      ["Google", "Chrome", "Application", "chrome.exe"],
+      ["Microsoft", "Edge", "Application", "msedge.exe"],
+      ["BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+      ["Chromium", "Application", "chrome.exe"],
+    ]
+    for (const base of bases) {
+      for (const parts of rel) {
+        const p = join(base, ...parts)
+        if (existsSync(p)) return p
+      }
+    }
+    // Last resort: maybe one is on PATH.
+    for (const n of ["chrome", "msedge", "brave", "chromium"]) {
+      const p = which(n)
+      if (p) return p
+    }
+    return null
+  }
+
   const names =
     platform() === "darwin"
-      ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser", "/Applications/Chromium.app/Contents/MacOS/Chromium"]
+      ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser", "/Applications/Chromium.app/Contents/MacOS/Chromium", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"]
       : ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "brave", "brave-browser", "microsoft-edge", "vivaldi-stable"]
   for (const n of names) {
     if (n.startsWith("/")) {

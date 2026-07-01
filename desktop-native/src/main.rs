@@ -1,12 +1,14 @@
 // Spectra native desktop shell.
 //
 // A tiny native window that renders Spectra's web UI using the operating
-// system's WebView (WebKitGTK on Linux) — no bundled Chromium. The Node engine
-// is started by the `spectra desktop` launcher, which passes the local URL via
-// the SPECTRA_URL environment variable.
+// system's WebView — WebView2 on Windows, WKWebView on macOS, WebKitGTK on
+// Linux — with no bundled Chromium. The Node engine is started by the
+// `spectra desktop` launcher, which passes the local URL via the SPECTRA_URL
+// environment variable.
 //
-// Build:  npm run desktop:build   (requires Rust + webkit2gtk-4.1 + gtk3)
-// Result: desktop-native/target/release/spectra-desktop  (a few MB)
+// Build:  npm run desktop:build   (requires Rust; see desktop-native/README.md
+//         for the per-OS WebView prerequisites)
+// Result: desktop-native/target/release/spectra-desktop[.exe]  (a few MB)
 
 use tao::{
     dpi::LogicalSize,
