@@ -10,7 +10,7 @@
 import { spawn } from "node:child_process"
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs"
 import { join, relative, extname } from "node:path"
-import { shellFor, detachForGroupKill, killTree } from "../util/platform.js"
+import { shellFor, detachForGroupKill, killTree, toPosix } from "../util/platform.js"
 
 export interface CommandResult {
   command: string
@@ -83,7 +83,7 @@ export function findTestFiles(projectRoot: string, maxFiles = 4000): string[] {
         continue
       }
       if (st.isDirectory()) walk(full)
-      else if (TEST_FILE_RE.test(entry)) out.push(relative(projectRoot, full))
+      else if (TEST_FILE_RE.test(entry)) out.push(toPosix(relative(projectRoot, full)))
       if (out.length >= maxFiles) return
     }
   }
@@ -338,7 +338,7 @@ export function collectSourceFiles(projectRoot: string, maxFiles = 600): Record<
         walk(full)
       } else if (SOURCE_EXT.has(extname(entry)) && st.size < 400_000) {
         try {
-          out[relative(projectRoot, full)] = readFileSync(full, "utf-8")
+          out[toPosix(relative(projectRoot, full))] = readFileSync(full, "utf-8")
         } catch {
           /* ignore unreadable file */
         }

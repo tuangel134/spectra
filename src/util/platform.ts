@@ -7,7 +7,7 @@
  */
 
 import { platform, homedir } from "node:os"
-import { join } from "node:path"
+import { join, sep } from "node:path"
 import { spawnSync, type ChildProcess } from "node:child_process"
 
 export const IS_WINDOWS = platform() === "win32"
@@ -81,12 +81,15 @@ export function killTree(child: ChildProcess, signal: NodeJS.Signals = "SIGKILL"
  * config is found unchanged.
  */
 export function configDirFor(app: string): string {
+  // An explicitly-set XDG_CONFIG_HOME wins on every OS (useful for tests and
+  // for users who deliberately relocate their config).
+  const xdg = process.env["XDG_CONFIG_HOME"]
+  if (xdg) return join(xdg, app)
   if (IS_WINDOWS) {
     const appData = process.env["APPDATA"]
     return appData ? join(appData, app) : join(homedir(), "AppData", "Roaming", app)
   }
-  const xdg = process.env["XDG_CONFIG_HOME"]
-  return xdg ? join(xdg, app) : join(homedir(), ".config", app)
+  return join(homedir(), ".config", app)
 }
 
 /** Spectra's own config directory. */
@@ -99,4 +102,13 @@ export function isAbsolutePath(ref: string): boolean {
   if (ref.startsWith("/")) return true
   // Windows drive-absolute (C:\ or C:/) or UNC (\\server\share).
   return IS_WINDOWS && (/^[A-Za-z]:[\\/]/.test(ref) || ref.startsWith("\\\\"))
+}
+
+/**
+ * Normalize a path to forward slashes for stable, cross-platform output.
+ * User-facing and asserted relative paths should always read `src/a.ts`, never
+ * `src\a.ts` — even on Windows.
+ */
+export function toPosix(p: string): string {
+  return p.split(sep).join("/")
 }

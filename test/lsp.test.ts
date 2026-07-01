@@ -20,34 +20,37 @@ test("languageForFile maps extensions to language ids", () => {
 
 test("LspClient initializes and collects publishDiagnostics", async () => {
   const dir = mkdtempSync(join(tmpdir(), "spectra-lsp-"))
+  let client: LspClient | undefined
   try {
     const file = join(dir, "x.ts")
     writeFileSync(file, "const a: number = 1\nconst b = 2\nconst c: number = 'x'\n")
-    const client = new LspClient(SPEC, dir)
+    client = new LspClient(SPEC, dir)
     await client.start()
     assert.equal(client.isInitialized, true)
     const diags = await client.diagnose(file, "const a: number = 1\nconst b = 2\nconst c: number = 'x'\n", 3000)
     assert.equal(diags.length, 1)
     assert.equal(diags[0]!.severity, "error")
     assert.equal(diags[0]!.line, 3)
-    client.close()
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    try { client?.close() } catch { /* ignore */ }
+    // maxRetries/retryDelay handle Windows releasing the child's handles late.
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 })
   }
 })
 
 test("LspManager.diagnose reports errors for a supported file", async () => {
   const dir = mkdtempSync(join(tmpdir(), "spectra-lspm-"))
+  let mgr: LspManager | undefined
   try {
     const file = join(dir, "y.ts")
     writeFileSync(file, "const c: number = 'x'\n")
-    const mgr = new LspManager(dir, { typescript: SPEC })
+    mgr = new LspManager(dir, { typescript: SPEC })
     const result = await mgr.diagnose(file)
     assert.equal(result.ok, true)
     assert.equal(result.diagnostics.length, 1)
-    mgr.close()
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    try { mgr?.close() } catch { /* ignore */ }
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 })
   }
 })
 
