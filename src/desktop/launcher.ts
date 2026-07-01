@@ -16,7 +16,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, chmodSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, chmodSync, renameSync } from "node:fs"
 import { createServer as netCreateServer } from "node:net"
 import { tmpdir, platform, arch } from "node:os"
 import { join, dirname } from "node:path"
@@ -54,11 +54,21 @@ async function downloadNativeBinary(here: string, report: (s: string) => void): 
     report(`${BRAND} ${color.gray(`downloading native desktop (${asset})…`)}\n`)
     const res = await fetch(`${RELEASE_BASE}/${asset}`, { redirect: "follow" })
     if (!res.ok) return null
+    // Only accept from the pinned GitHub release host (redirects land on a CDN,
+    // but the final URL must still be GitHub's release infrastructure).
+    if (!/^https:\/\/[^/]*(github\.com|githubusercontent\.com|github-releases[^/]*)\//.test(res.url)) return null
     const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length < 1024) return null // not a real binary (e.g. an error page)
+    if (buf.length < 4096) return null // too small to be a real binary
+    // Reject HTML/text error pages that slipped through with a 200.
+    const head = buf.subarray(0, 64).toString("latin1").trimStart().toLowerCase()
+    if (head.startsWith("<!doctype") || head.startsWith("<html") || head.startsWith("{")) return null
     mkdirSync(destDir, { recursive: true })
-    writeFileSync(dest, buf)
-    if (platform() !== "win32") chmodSync(dest, 0o755)
+    // Write to a temp file then atomically rename, so an interrupted download
+    // can never leave a partial binary that a later run would execute.
+    const tmp = join(destDir, `.${exe}.download-${process.pid}`)
+    writeFileSync(tmp, buf)
+    if (platform() !== "win32") chmodSync(tmp, 0o755)
+    renameSync(tmp, dest)
     return dest
   } catch {
     return null // offline or blocked → fall back to a browser window

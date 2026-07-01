@@ -44,7 +44,14 @@ export function parseDuckDuckGo(html: string, limit: number): SearchResult[] {
     let href = m[1]!
     // DDG wraps links as //duckduckgo.com/l/?uddg=<encoded>&…
     const uddg = /[?&]uddg=([^&]+)/.exec(href)
-    if (uddg) href = decodeURIComponent(uddg[1]!)
+    if (uddg) {
+      try {
+        href = decodeURIComponent(uddg[1]!)
+      } catch {
+        i++
+        continue // malformed %-encoding — skip this one link, not the whole search
+      }
+    }
     if (href.startsWith("//")) href = "https:" + href
     const title = decodeEntities(m[2]!)
     if (title && /^https?:\/\//.test(href)) {
@@ -55,11 +62,12 @@ export function parseDuckDuckGo(html: string, limit: number): SearchResult[] {
   return out
 }
 
-async function searchTavily(query: string, key: string, count: number): Promise<SearchResult[]> {
+async function searchTavily(query: string, key: string, count: number, signal: AbortSignal): Promise<SearchResult[]> {
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ api_key: key, query, max_results: count }),
+    signal,
   })
   if (!res.ok) return []
   const body = (await res.json()) as { results?: { title?: string; url?: string; content?: string }[] }
@@ -70,9 +78,9 @@ async function searchTavily(query: string, key: string, count: number): Promise<
   }))
 }
 
-async function searchBrave(query: string, key: string, count: number): Promise<SearchResult[]> {
+async function searchBrave(query: string, key: string, count: number, signal: AbortSignal): Promise<SearchResult[]> {
   const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${count}`
-  const res = await fetch(url, { headers: { "X-Subscription-Token": key, Accept: "application/json" } })
+  const res = await fetch(url, { headers: { "X-Subscription-Token": key, Accept: "application/json" }, signal })
   if (!res.ok) return []
   const body = (await res.json()) as { web?: { results?: { title?: string; url?: string; description?: string }[] } }
   return (body.web?.results ?? []).map((r) => ({
@@ -82,9 +90,10 @@ async function searchBrave(query: string, key: string, count: number): Promise<S
   }))
 }
 
-async function searchDuckDuckGo(query: string, count: number): Promise<SearchResult[]> {
+async function searchDuckDuckGo(query: string, count: number, signal: AbortSignal): Promise<SearchResult[]> {
   const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
     headers: { "User-Agent": UA, Accept: "text/html" },
+    signal,
   })
   if (!res.ok) return []
   return parseDuckDuckGo(await res.text(), count)
@@ -108,7 +117,8 @@ export const websearchTool: Tool = {
   async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
     const query = String(args["query"] ?? "").trim()
     if (!query) return { success: false, output: "Error: 'query' is required." }
-    const count = Math.min(10, Math.max(1, Number(args["count"] ?? 6)))
+    const rawCount = Number(args["count"] ?? 6)
+    const count = Number.isFinite(rawCount) ? Math.min(10, Math.max(1, Math.floor(rawCount))) : 6
 
     const level = ctx.permissionFor("websearch", query)
     if (level === "deny") return { success: false, output: `Error: web search denied.` }
@@ -121,9 +131,9 @@ export const websearchTool: Tool = {
       let results: SearchResult[] = []
       const tavily = process.env["TAVILY_API_KEY"]
       const brave = process.env["BRAVE_API_KEY"]
-      if (tavily) results = await searchTavily(query, tavily, count)
-      else if (brave) results = await searchBrave(query, brave, count)
-      if (results.length === 0) results = await searchDuckDuckGo(query, count)
+      if (tavily) results = await searchTavily(query, tavily, count, timeout.signal)
+      else if (brave) results = await searchBrave(query, brave, count, timeout.signal)
+      if (results.length === 0) results = await searchDuckDuckGo(query, count, timeout.signal)
 
       if (results.length === 0) {
         return { success: false, output: `No results for "${query}" (the search endpoint may be rate-limited).` }

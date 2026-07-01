@@ -141,7 +141,12 @@ function panel(title: string, lines: string[], innerWidth: number, theme: Theme)
   // Replace a slice of the top border after the corner with the label.
   const plainTop = top // already colored; rebuild a titled top instead.
   void plainTop
-  const titled = accent(theme, "╭─") + label + accent(theme, "─".repeat(Math.max(0, innerWidth + 2 - 2 - visibleWidth(label))) + "╮")
+  // Titled top border: ╭─ + " title " + filler + ╮ must match drawBox's top
+  // width (innerWidth + 4 visible cells). Filler = innerWidth + 1 − labelWidth.
+  const titled =
+    accent(theme, "╭─") +
+    label +
+    accent(theme, "─".repeat(Math.max(0, innerWidth + 1 - visibleWidth(label))) + "╮")
   box[0] = titled
   return box
 }

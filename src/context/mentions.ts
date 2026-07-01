@@ -7,7 +7,7 @@
  */
 
 import { readFileSync, statSync } from "node:fs"
-import { resolve, relative, isAbsolute } from "node:path"
+import { resolve, relative, isAbsolute, sep } from "node:path"
 
 const MAX_FILE_BYTES = 60_000
 const MAX_TOTAL_BYTES = 200_000
@@ -31,7 +31,9 @@ export function expandFileMentions(text: string, projectRoot: string): string {
 
     const abs = resolve(projectRoot, rel)
     const within = relative(projectRoot, abs)
-    if (within.startsWith("..") || isAbsolute(within)) continue // outside the project
+    // Reject only real traversal (a ".." path SEGMENT) or absolute paths — not
+    // legitimate in-root files whose name merely starts with ".." (e.g. "..env").
+    if (within === ".." || within.startsWith(".." + sep) || isAbsolute(within)) continue
 
     try {
       const st = statSync(abs)

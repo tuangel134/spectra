@@ -28,6 +28,8 @@ export class Screen {
   /** Bracketed-paste accumulation state (paste can span several data events). */
   private pasting = false
   private pasteBuf = ""
+  /** A trailing incomplete escape sequence carried into the next data event. */
+  private pending = ""
 
   constructor(
     input: NodeJS.ReadStream = process.stdin,
@@ -102,12 +104,22 @@ export class Screen {
   }
 
   private handleData = (chunk: string): void => {
-    let rest = chunk
+    // Prepend any escape sequence that was cut off at the previous chunk edge.
+    let rest = this.pending + chunk
+    this.pending = ""
     while (rest.length > 0) {
       if (this.pasting) {
         const end = rest.indexOf(PASTE_END)
         if (end === -1) {
-          this.pasteBuf += rest
+          // The end marker may be split across chunks: hold a trailing partial
+          // escape sequence for next time; buffer the rest of the paste.
+          const inc = incompleteEscTail(rest)
+          if (inc === -1) {
+            this.pasteBuf += rest
+          } else {
+            this.pasteBuf += rest.slice(0, inc)
+            this.pending = rest.slice(inc)
+          }
           return
         }
         this.pasteBuf += rest.slice(0, end)
@@ -119,7 +131,12 @@ export class Screen {
       }
       const start = rest.indexOf(PASTE_START)
       if (start === -1) {
-        for (const piece of splitChunks(rest)) this.keyHandler?.(parseKey(piece))
+        // Hold a trailing incomplete escape (could become a paste marker or a
+        // CSI key once the next chunk arrives) instead of mis-emitting it.
+        const inc = incompleteEscTail(rest)
+        const upto = inc === -1 ? rest.length : inc
+        for (const piece of splitChunks(rest.slice(0, upto))) this.keyHandler?.(parseKey(piece))
+        this.pending = rest.slice(upto)
         return
       }
       // Emit everything before the paste as ordinary keys, then start buffering.
@@ -137,6 +154,23 @@ export class Screen {
   private handleResize = (): void => {
     this.resizeHandler?.(this.size())
   }
+}
+
+/**
+ * If `s` ends with an INCOMPLETE escape sequence (a lone trailing ESC, or a
+ * CSI/SS3 `ESC[`/`ESCO…` with no final byte yet), return the index where it
+ * starts so the caller can carry it into the next data event. Else -1.
+ */
+export function incompleteEscTail(s: string): number {
+  const k = s.lastIndexOf("\x1b")
+  if (k === -1) return -1
+  const seq = s.slice(k)
+  if (seq.length === 1) return k // lone trailing ESC
+  if (seq[1] !== "[" && seq[1] !== "O") return -1 // ESC+char = complete 2-byte
+  for (let j = 2; j < seq.length; j++) {
+    if (/[A-Za-z~]/.test(seq[j]!)) return -1 // has a final byte → complete
+  }
+  return k // CSI/SS3 without a terminator yet → incomplete
 }
 
 /** Split a raw input chunk into individual key sequences. */

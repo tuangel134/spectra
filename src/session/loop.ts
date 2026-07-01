@@ -500,11 +500,14 @@ export class AgentLoop {
 
 /** True for errors worth retrying on the SAME model (network blips, 5xx, 429). */
 function isTransientError(err: unknown): boolean {
+  const msg = (err as Error)?.message?.toLowerCase?.() ?? ""
+  // A user/turn cancellation is NOT transient — never retry it (retrying would
+  // delay Ctrl-C by several seconds while each attempt re-aborts).
+  if (/cancel/.test(msg)) return false
   if (err instanceof ProviderError) {
     if (err.status === undefined) return true // network/transport error
     return err.status === 429 || err.status >= 500
   }
-  const msg = (err as Error)?.message?.toLowerCase?.() ?? ""
   return /timeout|timed out|econnreset|econnrefused|enotfound|network|fetch failed|socket hang up|eai_again|aborted/.test(
     msg,
   )

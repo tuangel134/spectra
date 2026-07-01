@@ -45,13 +45,15 @@ export function runDoctor(rt: Runtime): number {
   )
 
   // git
-  add(has("git") ? "ok" : "fail", "git", has("git") ? "found" : "install git (needed by the git tools & updates)")
+  const hasGit = has("git")
+  add(hasGit ? "ok" : "fail", "git", hasGit ? "found" : "install git (needed by the git tools & updates)")
 
   // ripgrep (optional)
+  const hasRg = has("rg")
   add(
-    has("rg") ? "ok" : "warn",
+    hasRg ? "ok" : "warn",
     "ripgrep (rg)",
-    has("rg") ? "found" : "optional — grep/glob fall back to a slower scan without it",
+    hasRg ? "found" : "optional — grep/glob fall back to a slower scan without it",
   )
 
   // Project root

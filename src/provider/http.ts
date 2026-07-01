@@ -54,7 +54,11 @@ export async function postJson<T>(options: HttpRequestOptions): Promise<T> {
       const waitMs = shortRateLimit
         ? err.retryAfter! * 1000 + 250
         : 500 * Math.pow(2, attempt)
-      options.onRetry?.(attempt + 1, waitMs, err.status)
+      try {
+        options.onRetry?.(attempt + 1, waitMs, err.status)
+      } catch {
+        /* onRetry is best-effort telemetry — never let it break the retry loop */
+      }
       await sleep(waitMs)
     }
   }
