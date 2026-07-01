@@ -61,6 +61,8 @@ export interface LoopDeps {
   autoApprove?: () => boolean
   /** Event-driven hooks fired around prompts, tools and file changes. */
   hooks?: HookRegistry
+  /** Always-on project steering (AGENTS.md/CLAUDE.md/.spectra/steering) → prompt. */
+  steering?: () => string
 }
 
 export interface LoopOptions {
@@ -113,6 +115,13 @@ export class AgentLoop {
       agent.allowedTools === null || agent.allowedTools.includes(name)
 
     const toolSchemas = this.deps.tools.schemas(allowedTools)
+
+    // Inject always-on project steering (AGENTS.md/CLAUDE.md/.spectra/steering)
+    // into the system prompt so repo conventions actually reach the model.
+    const steeringText = this.deps.steering?.() ?? ""
+    const systemPrompt = steeringText
+      ? `${agent.prompt}\n\n# Project steering — always follow these repo conventions\n${steeringText}`
+      : agent.prompt
 
     const maxSteps = options.maxSteps ?? agent.maxSteps ?? DEFAULT_MAX_STEPS
     const accumulatedChanges: FileChange[] = []
@@ -184,13 +193,13 @@ export class AgentLoop {
 
       // Intelligent auto-compaction: if the conversation is approaching the
       // model's context window, summarize the older turns before requesting.
-      await this.maybeCompact(sessionId, resolved, client, agent.prompt, handlers)
+      await this.maybeCompact(sessionId, resolved, client, systemPrompt, handlers)
 
       const result = await this.completeWithFailover(
         chain,
         (model) => ({
           model,
-          system: agent.prompt,
+          system: systemPrompt,
           messages: session.messages,
           tools: toolSchemas,
           temperature: agent.temperature,

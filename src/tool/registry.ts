@@ -21,6 +21,8 @@ import { bashTool } from "./bash.js"
 import { grepTool } from "./grep.js"
 import { globTool } from "./glob.js"
 import { webfetchTool } from "./webfetch.js"
+import { websearchTool } from "./websearch.js"
+import { todoWriteTool, todoReadTool } from "./todo.js"
 import { headroomRetrieveTool } from "./headroom-retrieve.js"
 import { stealthFetchTool } from "./stealth-fetch.js"
 import { gitTools } from "./git.js"
@@ -36,7 +38,7 @@ export class ToolRegistry {
   }
 
   static builtins(): Tool[] {
-    return [readTool, writeTool, editTool, bashTool, grepTool, globTool, webfetchTool, stealthFetchTool, browserTool, computerTool, securityScanTool, headroomRetrieveTool, ...gitTools]
+    return [readTool, writeTool, editTool, bashTool, grepTool, globTool, webfetchTool, websearchTool, todoWriteTool, todoReadTool, stealthFetchTool, browserTool, computerTool, securityScanTool, headroomRetrieveTool, ...gitTools]
   }
 
   register(tool: Tool): void {

@@ -22,6 +22,7 @@ import { createTaskTool } from "./tool/task.js"
 import { PluginManager } from "./plugin/index.js"
 import { ModelRouter, type RoutingConfig } from "./routing/index.js"
 import { MemoryStore, createMemoryTool } from "./memory/index.js"
+import { loadSteering } from "./steering/index.js"
 
 export interface AuditEntry {
   id: string
@@ -103,6 +104,7 @@ export function createRuntime(options: { cwd?: string; configPath?: string } = {
     router,
     autoApprove: () => config.autoApprove,
     hooks,
+    steering: () => loadSteering(loaded.projectRoot),
   }
   const loop = new AgentLoop(loopDeps)
 
