@@ -17,6 +17,7 @@ import { runSpecWorkflow, runSpecExecution, generateClarifyingQuestions, autoAns
 import { detectSpecIntent } from "../spec/detect.js"
 import type { Clarification, ClarifyQuestion } from "../spec/clarify.js"
 import { ProjectManager } from "../projects/index.js"
+import { expandFileMentions } from "../context/mentions.js"
 import { saveProviderKey, saveModel, savePermission, saveSpecDetect } from "../config/writer.js"
 import { ZEN_MODELS } from "../provider/zen.js"
 
@@ -367,7 +368,7 @@ export class Repl {
       const result = await this.rt.loop.run({
         sessionId: session.id,
         agent,
-        userMessage: input,
+        userMessage: expandFileMentions(input, this.rt.config.projectRoot),
         handlers: this.makeHandlers(),
       })
       if (result.changes.length > 0) {

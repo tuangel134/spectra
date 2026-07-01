@@ -14,6 +14,8 @@ import { connectFlow, modelFlow, type FlowResult } from "./flows.js"
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { resolve as resolvePathAbs, join as joinPath } from "node:path"
 import { configDir } from "../util/platform.js"
+import { expandFileMentions } from "../context/mentions.js"
+import { loadCustomCommands, expandCommandTemplate } from "../commands/custom.js"
 import type { Runtime } from "../runtime.js"
 import type { LoopHandlers } from "../session/loop.js"
 import { saveModel } from "../config/writer.js"
@@ -40,6 +42,8 @@ export class TuiApp {
   private resolveExit!: () => void
   /** The user's chat session — kept stable so spec/subagent sessions can't hijack it. */
   private chatSessionId = ""
+  /** User-defined slash commands from .spectra/commands (loaded once at start). */
+  private customCommands: import("../commands/custom.js").CustomCommand[] = []
   /** Pending tool-approval resolver (supervised mode). */
   private pendingApproval: ((ok: boolean) => void) | null = null
   private pendingApprovalTool: string | null = null
@@ -89,6 +93,7 @@ export class TuiApp {
       this.state.rows = size.rows
       this.paint()
     })
+    this.customCommands = loadCustomCommands(this.rt.config.projectRoot)
     this.maybeOnboard()
     this.paint()
 
@@ -311,13 +316,18 @@ export class TuiApp {
 
   /** Recompute the slash-command menu from the current input. */
   private updateMenu(): void {
-    const items = filterCommands(this.state.input)
+    const builtins = filterCommands(this.state.input)
+    // Include user-defined commands that match the prefix.
+    const custom = this.customCommands
+      .filter((c) => `/${c.name}`.startsWith(this.state.input))
+      .map((c) => ({ command: `/${c.name}`, description: c.description, args: undefined as string | undefined }))
+    const items = [
+      ...builtins.map((c) => ({ command: c.command, description: c.description, args: c.args })),
+      ...custom,
+    ]
     if (items.length > 0 && this.state.input.startsWith("/") && !this.state.input.includes(" ")) {
       const index = this.state.menu ? Math.min(this.state.menu.index, items.length - 1) : 0
-      this.state.menu = {
-        items: items.map((c) => ({ command: c.command, description: c.description, args: c.args })),
-        index,
-      }
+      this.state.menu = { items, index }
     } else {
       this.state.menu = undefined
     }
@@ -627,7 +637,7 @@ export class TuiApp {
       await this.rt.loop.run({
         sessionId: session.id,
         agent: this.rt.agents.current_(),
-        userMessage: text,
+        userMessage: expandFileMentions(text, this.rt.config.projectRoot),
         handlers: this.handlers(),
         signal: this.turnAbort.signal,
       })
@@ -1251,9 +1261,19 @@ export class TuiApp {
         )
         break
 
-      default:
+      default: {
+        // User-defined slash command from .spectra/commands/*.md?
+        const custom = this.customCommands.find((c) => c.name === cmd)
+        if (custom) {
+          this.enterChat()
+          this.pushMessage("user", `/${cmd}${arg ? " " + arg : ""}`)
+          this.paint()
+          await this.runPrompt(expandCommandTemplate(custom.template, arg))
+          return
+        }
         this.enterChat()
         this.pushMessage("system", `Unknown command: /${cmd}. Type /help.`)
+      }
     }
     this.paint()
   }
