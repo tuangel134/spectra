@@ -234,7 +234,7 @@ export class AgentLoop {
 
       // Pre-compute per-call results (parallel when safe, else sequential),
       // applying the repeat-guard first. Results stay in original order.
-      const runOne = async (call: ToolCallRequest): Promise<{ call: ToolCallRequest; output: string; change?: FileChange }> => {
+      const runOne = async (call: ToolCallRequest): Promise<{ call: ToolCallRequest; output: string; changes: FileChange[] }> => {
         const sig = `${call.name}:${JSON.stringify(call.arguments)}`
         repeatCounts.set(sig, (repeatCounts.get(sig) ?? 0) + 1)
         if ((repeatCounts.get(sig) ?? 0) >= 3) {
@@ -243,10 +243,11 @@ export class AgentLoop {
             output:
               `Error: you have called ${call.name} with identical arguments 3 times. ` +
               `This is not working — STOP repeating it. Try a different approach.`,
+            changes: [],
           }
         }
         const r = await this.executeToolCall(call, allowedTools, ctx, handlers)
-        return { call, output: r.output, change: r.change }
+        return { call, output: r.output, changes: r.changes }
       }
 
       // preToolUse hooks (e.g. access checks / reminders) fire before execution.
@@ -256,15 +257,15 @@ export class AgentLoop {
       const executed = allReadOnly
         ? await Promise.all(result.toolCalls.map(runOne))
         : await (async () => {
-            const acc: { call: ToolCallRequest; output: string; change?: FileChange }[] = []
+            const acc: { call: ToolCallRequest; output: string; changes: FileChange[] }[] = []
             for (const call of result.toolCalls) acc.push(await runOne(call))
             return acc
           })()
 
       // Process results in deterministic order: record changes, log, compress,
       // and feed each result back to the conversation by its tool_call_id.
-      for (const { call, output, change } of executed) {
-        if (change) {
+      for (const { call, output, changes } of executed) {
+        for (const change of changes) {
           accumulatedChanges.push(change)
           this.deps.sessions.recordFileChange(sessionId, change)
           // File lifecycle hooks (e.g. lint/format/test on save).
@@ -443,13 +444,13 @@ export class AgentLoop {
     allowedTools: (name: string) => boolean,
     ctx: ToolContext,
     handlers: LoopHandlers,
-  ): Promise<{ output: string; change?: FileChange }> {
+  ): Promise<{ output: string; changes: FileChange[] }> {
     if (!allowedTools(call.name)) {
       const available = this.deps.tools
         .schemas(allowedTools)
         .map((s) => s.name)
         .join(", ")
-      return { output: `Error: tool "${call.name}" is not available to this agent. Available tools: ${available}. Use one of those.` }
+      return { output: `Error: tool "${call.name}" is not available to this agent. Available tools: ${available}. Use one of those.`, changes: [] }
     }
 
     const tool = this.deps.tools.get(call.name)
@@ -458,7 +459,7 @@ export class AgentLoop {
       const names = this.deps.tools.list().map((t) => t.name)
       const suggestion = closestName(call.name, names)
       const hint = suggestion ? ` Did you mean "${suggestion}"?` : ""
-      return { output: `Error: unknown tool "${call.name}".${hint} Available tools: ${names.join(", ")}.` }
+      return { output: `Error: unknown tool "${call.name}".${hint} Available tools: ${names.join(", ")}.`, changes: [] }
     }
 
     handlers.onToolStart(call.name, call.arguments)
@@ -467,21 +468,32 @@ export class AgentLoop {
       const result = await tool.execute(call.arguments, ctx)
       handlers.onToolEnd(call.name, result.success, result.output)
 
-      let change: FileChange | undefined
+      const changes: FileChange[] = []
       const meta = result.metadata
-      if (meta && typeof meta["path"] === "string" && "after" in meta) {
-        change = {
+      // Multi-file tools (e.g. apply_patch) report metadata.changes[].
+      if (meta && Array.isArray(meta["changes"])) {
+        for (const c of meta["changes"] as Record<string, unknown>[]) {
+          if (c && typeof c["path"] === "string") {
+            changes.push({
+              path: c["path"] as string,
+              before: (c["before"] as string | null) ?? null,
+              after: (c["after"] as string | null) ?? null,
+            })
+          }
+        }
+      } else if (meta && typeof meta["path"] === "string" && "after" in meta) {
+        changes.push({
           path: meta["path"] as string,
           before: (meta["before"] as string | null) ?? null,
           after: (meta["after"] as string | null) ?? null,
-        }
+        })
       }
 
-      return { output: result.output, change }
+      return { output: result.output, changes }
     } catch (err) {
       const message = `Tool "${call.name}" threw: ${(err as Error).message}`
       handlers.onToolEnd(call.name, false, message)
-      return { output: message }
+      return { output: message, changes: [] }
     }
   }
 }

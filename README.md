@@ -184,6 +184,7 @@ Cualquier endpoint compatible con OpenAI:
 - **Steering automático** — el agente lee y respeta `AGENTS.md`, `CLAUDE.md`, `.cursorrules` y `.spectra/steering/*.md` (inclusión `always`) en **cada** turno.
 - **`@archivo`** — menciona archivos en tu mensaje (`revisa @src/app.ts`) y su contenido se adjunta como contexto automáticamente.
 - **Comandos personalizados** — crea `.spectra/commands/<nombre>.md` (con `$ARGUMENTS` / `$1`…`$9`) y úsalo como `/<nombre>` en la TUI.
+- **Edición coordinada** — `apply_patch` aplica varios cambios (crear/editar/borrar) de forma **atómica**: si algo falla, no se escribe nada, y todo el conjunto se puede deshacer con `/undo`.
 
 ## 📐 Desarrollo guiado por especificaciones
 

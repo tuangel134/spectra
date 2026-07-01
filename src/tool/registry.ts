@@ -17,6 +17,7 @@ export interface ToolSchemaExport {
 import { readTool } from "./read.js"
 import { writeTool } from "./write.js"
 import { editTool } from "./edit.js"
+import { applyPatchTool } from "./apply-patch.js"
 import { bashTool } from "./bash.js"
 import { grepTool } from "./grep.js"
 import { globTool } from "./glob.js"
@@ -38,7 +39,7 @@ export class ToolRegistry {
   }
 
   static builtins(): Tool[] {
-    return [readTool, writeTool, editTool, bashTool, grepTool, globTool, webfetchTool, websearchTool, todoWriteTool, todoReadTool, stealthFetchTool, browserTool, computerTool, securityScanTool, headroomRetrieveTool, ...gitTools]
+    return [readTool, writeTool, editTool, applyPatchTool, bashTool, grepTool, globTool, webfetchTool, websearchTool, todoWriteTool, todoReadTool, stealthFetchTool, browserTool, computerTool, securityScanTool, headroomRetrieveTool, ...gitTools]
   }
 
   register(tool: Tool): void {
