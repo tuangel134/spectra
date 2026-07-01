@@ -40,13 +40,21 @@ function withRuntime(fn: (rt: ReturnType<typeof createRuntime>, home: string) =>
     const home = mkdtempSync(join(tmpdir(), "spectra-cat-home-"))
     const project = mkdtempSync(join(tmpdir(), "spectra-cat-proj-"))
     const prev = process.env["HOME"]
+    const prevXdg = process.env["XDG_CONFIG_HOME"]
+    const prevAppData = process.env["APPDATA"]
     process.env["HOME"] = home
+    process.env["XDG_CONFIG_HOME"] = join(home, ".config")
+    process.env["APPDATA"] = join(home, "AppData", "Roaming")
     delete process.env["OPENCODE_API_KEY"]
     delete process.env["ANTHROPIC_API_KEY"]
     try {
       await fn(createRuntime({ cwd: project }), home)
     } finally {
       if (prev !== undefined) process.env["HOME"] = prev
+      if (prevXdg !== undefined) process.env["XDG_CONFIG_HOME"] = prevXdg
+      else delete process.env["XDG_CONFIG_HOME"]
+      if (prevAppData !== undefined) process.env["APPDATA"] = prevAppData
+      else delete process.env["APPDATA"]
       rmSync(home, { recursive: true, force: true })
       rmSync(project, { recursive: true, force: true })
     }

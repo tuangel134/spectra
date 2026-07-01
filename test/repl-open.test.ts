@@ -43,7 +43,11 @@ test("REPL /open switches to another project and resumes its session", async () 
   const A = mkdtempSync(join(tmpdir(), "spectra-openA-"))
   const B = mkdtempSync(join(tmpdir(), "spectra-openB-"))
   const prevHome = process.env["HOME"]
+  const prevXdg = process.env["XDG_CONFIG_HOME"]
+  const prevAppData = process.env["APPDATA"]
   process.env["HOME"] = home
+  process.env["XDG_CONFIG_HOME"] = join(home, ".config")
+  process.env["APPDATA"] = join(home, "AppData", "Roaming")
   try {
     seedProject(A, "alpha task")
     const idB = seedProject(B, "beta task")
@@ -59,6 +63,10 @@ test("REPL /open switches to another project and resumes its session", async () 
   } finally {
     if (prevHome !== undefined) process.env["HOME"] = prevHome
     else delete process.env["HOME"]
+    if (prevXdg !== undefined) process.env["XDG_CONFIG_HOME"] = prevXdg
+    else delete process.env["XDG_CONFIG_HOME"]
+    if (prevAppData !== undefined) process.env["APPDATA"] = prevAppData
+    else delete process.env["APPDATA"]
     rmSync(home, { recursive: true, force: true })
     rmSync(A, { recursive: true, force: true })
     rmSync(B, { recursive: true, force: true })

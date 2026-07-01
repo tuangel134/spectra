@@ -15,6 +15,7 @@ import {
   projectConfigPath,
 } from "../src/config/writer.ts"
 import { parseJsonc } from "../src/config/loader.ts"
+import { configDir } from "../src/util/platform.ts"
 
 function withTempFile(fn: (path: string) => void): () => void {
   return () => {
@@ -63,24 +64,32 @@ test(
 )
 
 /**
- * The CRUD writers below target the global config, resolved through homedir().
- * We redirect HOME to a temp dir so we exercise the real functions without
- * touching the user's actual configuration.
+ * The CRUD writers below target the global config, resolved through
+ * configDir() — which honors XDG_CONFIG_HOME (POSIX) and %APPDATA% (Windows).
+ * We point ALL of those at a temp dir so we exercise the real functions
+ * cross-platform without touching the user's actual configuration, and we
+ * derive the expected path from configDir() itself so it matches every OS.
  */
 function withTempHome(fn: (configPath: string) => void): () => void {
   return () => {
     const dir = mkdtempSync(join(tmpdir(), "spectra-home-"))
-    const prevHome = process.env.HOME
-    const prevUserProfile = process.env.USERPROFILE
+    const prev = {
+      HOME: process.env.HOME,
+      USERPROFILE: process.env.USERPROFILE,
+      XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+      APPDATA: process.env.APPDATA,
+    }
     process.env.HOME = dir
     process.env.USERPROFILE = dir
+    process.env.XDG_CONFIG_HOME = join(dir, ".config")
+    process.env.APPDATA = join(dir, "AppData", "Roaming")
     try {
-      fn(join(dir, ".config", "spectra", "spectra.jsonc"))
+      fn(join(configDir(), "spectra.jsonc"))
     } finally {
-      if (prevHome === undefined) delete process.env.HOME
-      else process.env.HOME = prevHome
-      if (prevUserProfile === undefined) delete process.env.USERPROFILE
-      else process.env.USERPROFILE = prevUserProfile
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k]
+        else process.env[k] = v
+      }
       rmSync(dir, { recursive: true, force: true })
     }
   }
