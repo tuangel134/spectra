@@ -61,6 +61,36 @@ const KNOWN: Record<string, ProviderDefaults> = {
     sdk: "openai-compatible", // unified OpenAI-compatible gateway (incl. :free models)
     envKey: "OPENROUTER_API_KEY",
   },
+  groq: {
+    name: "Groq",
+    baseURL: "https://api.groq.com/openai/v1",
+    sdk: "openai-compatible",
+    envKey: "GROQ_API_KEY",
+  },
+  cerebras: {
+    name: "Cerebras",
+    baseURL: "https://api.cerebras.ai/v1",
+    sdk: "openai-compatible",
+    envKey: "CEREBRAS_API_KEY",
+  },
+  mistral: {
+    name: "Mistral",
+    baseURL: "https://api.mistral.ai/v1",
+    sdk: "openai-compatible",
+    envKey: "MISTRAL_API_KEY",
+  },
+  deepseek: {
+    name: "DeepSeek",
+    baseURL: "https://api.deepseek.com/v1",
+    sdk: "openai-compatible",
+    envKey: "DEEPSEEK_API_KEY",
+  },
+  xai: {
+    name: "xAI (Grok)",
+    baseURL: "https://api.x.ai/v1",
+    sdk: "openai-compatible",
+    envKey: "XAI_API_KEY",
+  },
   freebuff: {
     name: "Freebuff (Codebuff free)",
     baseURL: FREEBUFF_DEFAULT_BASE, // OpenAI-compatible via the freebuff2api proxy
@@ -111,6 +141,32 @@ export class ProviderRegistry {
       ...config,
       options: { ...existing.options, ...config.options },
     }
+  }
+
+  /** The base URL for a provider (user override or known default), or null. */
+  baseUrlFor(id: string): string | null {
+    const u = this.providers[id]
+    if (u?.baseURL) return u.baseURL
+    if (u?.options?.baseURL) return u.options.baseURL
+    return KNOWN[id]?.baseURL ?? null
+  }
+
+  /**
+   * Fetch the provider's LIVE `/models` list and replace its stored models, so
+   * pickers always show current models instead of a stale hardcoded set.
+   * Best-effort: returns the fetched ids, or [] if unavailable.
+   */
+  async refreshModels(id: string): Promise<string[]> {
+    const baseURL = this.baseUrlFor(id)
+    if (!baseURL) return []
+    const apiKey = this.resolveApiKey(id, KNOWN[id], this.providers[id])
+    const { fetchLiveModels } = await import("./model-catalog.js")
+    const ids = await fetchLiveModels(baseURL, apiKey)
+    if (ids.length === 0) return []
+    const models: Record<string, { name: string }> = {}
+    for (const mid of ids) models[mid] = { name: mid }
+    this.upsertProvider(id, { models })
+    return ids
   }
 
   /** Whether a provider has a usable API key (inline or via env). */

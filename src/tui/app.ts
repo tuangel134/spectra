@@ -13,6 +13,7 @@ import { type Flow, type FlowStep, resolveAnswer } from "./flow.js"
 import { connectFlow, modelFlow, type FlowResult } from "./flows.js"
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { resolve as resolvePathAbs, join as joinPath } from "node:path"
+import { configDir } from "../util/platform.js"
 import type { Runtime } from "../runtime.js"
 import type { LoopHandlers } from "../session/loop.js"
 import { saveModel } from "../config/writer.js"
@@ -88,11 +89,38 @@ export class TuiApp {
       this.state.rows = size.rows
       this.paint()
     })
+    this.maybeOnboard()
     this.paint()
 
     return new Promise<void>((resolve) => {
       this.resolveExit = resolve
     })
+  }
+
+  /** One-time welcome + quick-start tips on the very first launch. */
+  private maybeOnboard(): void {
+    const marker = joinPath(configDir(), ".onboarded")
+    if (existsSync(marker)) return
+    try {
+      mkdirSync(configDir(), { recursive: true })
+      writeFileSync(marker, new Date().toISOString())
+    } catch {
+      /* if we can't persist the marker, still show it once this run */
+    }
+    this.enterChat()
+    this.pushMessage("system", "Welcome to Spectra ⚡ — the spec-driven AI coding agent.")
+    this.pushMessage("system", "Just type what you need — write code, fix a bug, or troubleshoot your computer. No modes to switch.")
+    this.pushMessage(
+      "system",
+      "Handy: /help · /connect (add a provider) · /model (switch model) · Ctrl+K palette · ? shortcuts",
+    )
+    const providerId = this.rt.config.config.model.split("/")[0] ?? ""
+    if (!this.rt.providers.hasCredentials(providerId)) {
+      this.pushMessage(
+        "system",
+        "You're on the free model (no API key needed). Run /connect anytime to add Anthropic, OpenAI, Groq, Gemini, and more.",
+      )
+    }
   }
 
   private paint(): void {

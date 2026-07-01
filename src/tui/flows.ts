@@ -54,6 +54,41 @@ export const CONNECTABLE: ConnectableProvider[] = [
     suggestedModel: "google/gemini-3.1-pro",
   },
   {
+    id: "groq",
+    name: "Groq",
+    hint: "console.groq.com — very fast",
+    needsKey: true,
+    suggestedModel: "groq/llama-3.3-70b-versatile",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    hint: "openrouter.ai — 100s of models, incl. :free",
+    needsKey: true,
+    suggestedModel: "openrouter/", // pick from the live list after connecting
+  },
+  {
+    id: "cerebras",
+    name: "Cerebras",
+    hint: "cloud.cerebras.ai — fastest inference",
+    needsKey: true,
+    suggestedModel: "cerebras/llama-3.3-70b",
+  },
+  {
+    id: "mistral",
+    name: "Mistral",
+    hint: "console.mistral.ai",
+    needsKey: true,
+    suggestedModel: "mistral/mistral-large-latest",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    hint: "platform.deepseek.com",
+    needsKey: true,
+    suggestedModel: "deepseek/deepseek-chat",
+  },
+  {
     id: "ollama",
     name: "Ollama (local, no key)",
     hint: "runs on your machine",
@@ -172,10 +207,27 @@ export function connectFlow(rt: Runtime, onResult: (r: FlowResult) => void): Flo
         modelToSet = suggested
       }
 
+      // Pull the provider's LIVE model list so the picker shows current models
+      // (not a stale hardcoded set). Best-effort — never blocks connecting.
+      let liveModels: string[] = []
+      try {
+        liveModels = await rt.providers.refreshModels(savedProvider)
+      } catch {
+        /* offline / non-OpenAI shape — ignore */
+      }
+      // If we didn't set a concrete model but the provider advertises models,
+      // adopt the first one so the user has a working default immediately.
+      if (!modelToSet && liveModels.length > 0) {
+        const picked = `${savedProvider}/${liveModels[0]}`
+        rt.config.config.model = picked
+        saveModel(picked)
+        modelToSet = picked
+      }
+
       onResult({
-        message: `✓ Connected ${savedProvider}. Saved to your global config (~/.config/spectra/spectra.jsonc).${
-          modelToSet ? ` Model set to ${modelToSet}.` : ""
-        }`,
+        message: `✓ Connected ${savedProvider}.${
+          liveModels.length ? ` ${liveModels.length} models available.` : ""
+        } Saved to your global config.${modelToSet ? ` Model set to ${modelToSet}.` : ""}`,
         modelToSet,
         connectedProvider: savedProvider,
       })

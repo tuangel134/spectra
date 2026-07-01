@@ -82,7 +82,7 @@ function printHelp(): void {
   const lines: [string, string][] = [
     ["spectra", "Launch the interactive TUI (resumes your last session)"],
     ["spectra --new", "Launch the TUI with a fresh session"],
-    ['spectra ops "<problem>"', "Fix this computer: audio, wifi, drivers, services (aliases: fix, doctor)"],
+    ['spectra ops "<problem>"', "Fix this computer: audio, wifi, drivers, services (alias: fix)"],
     ['spectra run "<prompt>"', "Run a single prompt non-interactively"],
     ['spectra spec "<desc>"', "Generate a spec (requirements, design, tasks)"],
     ["spectra run-spec <id>", "Execute a generated spec's tasks"],
@@ -97,6 +97,9 @@ function printHelp(): void {
     ["spectra freebuff", "Start the Freebuff proxy (free models, no login)"],
     ["spectra agent", "List available agents"],
     ["spectra init", "Initialize .spectra in this project"],
+    ["spectra doctor", "Check your environment & config (Node, git, model, keys)"],
+    ["spectra update", "Update Spectra to the latest version and rebuild"],
+    ["spectra completion <shell>", "Print a shell completion script (bash/zsh/fish/pwsh)"],
     ["spectra --help", "Show this help"],
     ["spectra --version", "Show version"],
   ]
@@ -189,8 +192,7 @@ async function main(): Promise<void> {
     }
 
     case "ops":
-    case "fix":
-    case "doctor": {
+    case "fix": {
       // System troubleshooter. With a description → one-shot diagnosis that
       // streams output and prompts (y/N) before any privileged/destructive
       // step. Without a description → interactive TUI with ops preselected.
@@ -395,6 +397,30 @@ async function main(): Promise<void> {
 
     case "init": {
       await cmdInit(rt.config.projectRoot)
+      break
+    }
+
+    case "doctor": {
+      const { runDoctor } = await import("./cli/doctor.js")
+      process.exitCode = runDoctor(rt)
+      break
+    }
+
+    case "update": {
+      const { runUpdate } = await import("./cli/update.js")
+      process.exitCode = runUpdate()
+      break
+    }
+
+    case "completion": {
+      const { completionScript } = await import("./cli/completion.js")
+      const script = completionScript(argv[1] ?? "")
+      if (!script) {
+        logger.error("Usage: spectra completion <bash|zsh|fish|powershell>")
+        process.exitCode = 1
+      } else {
+        stdout.write(script)
+      }
       break
     }
 

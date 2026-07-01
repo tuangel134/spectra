@@ -125,6 +125,9 @@ spectra web              # Servidor + UI web (puerto 4096)
 spectra models           # Lista proveedores y modelos configurados
 spectra agent            # Lista los agentes disponibles
 spectra eval             # Scorecard de capacidades
+spectra doctor           # Chequea tu entorno y config (Node, git, modelo, keys)
+spectra update           # Actualiza Spectra a la última versión y recompila
+spectra completion <sh>  # Script de autocompletado (bash/zsh/fish/powershell)
 spectra init             # Inicializa .spectra/ en el proyecto
 spectra --help           # Ayuda
 ```
@@ -139,8 +142,11 @@ Spectra funciona con cualquier proveedor. Conéctate con `/connect` en la TUI o 
 | Anthropic | `anthropic/claude-sonnet-4-5` |
 | OpenAI | `openai/gpt-5.1` |
 | Google Gemini | `google/gemini-3.1-pro` |
+| Groq · Cerebras · Mistral · DeepSeek · OpenRouter · xAI | preset de un clic en `/connect` |
 | Ollama (local) | `ollama/llama3.2` |
 | Personalizado (base URL) | `mi-api/mi-modelo` |
+
+> Al conectar un proveedor, Spectra baja su lista de modelos **en vivo** (`/models`), así el selector siempre muestra modelos actuales y no una lista vieja.
 
 ```jsonc
 // spectra.jsonc

@@ -52,7 +52,10 @@ const PLACEHOLDER = 'Describe a task, or "/" commands · "@" files · "!" shell'
 const MAX_BOX_INNER = 70
 
 function inputInnerWidth(cols: number): number {
-  return Math.max(20, Math.min(MAX_BOX_INNER, cols - 6))
+  const ideal = Math.min(MAX_BOX_INNER, cols - 6)
+  // Never let the box (inner + 2 borders) exceed the terminal width, but keep a
+  // usable minimum so a very narrow window still renders a box.
+  return Math.max(8, Math.min(ideal, cols - 2))
 }
 
 function capitalize(s: string): string {

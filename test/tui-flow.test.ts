@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { resolveAnswer, type Flow } from "../src/tui/flow.ts"
-import { connectFlow, modelFlow, type FlowResult } from "../src/tui/flows.ts"
+import { connectFlow, modelFlow, CONNECTABLE, type FlowResult } from "../src/tui/flows.ts"
 import { createRuntime } from "../src/runtime.ts"
 import { parseJsonc } from "../src/config/loader.ts"
 
@@ -97,8 +97,9 @@ test(
   "connectFlow (custom) collects id, base URL, and key",
   withRuntime(async ({ rt, home }) => {
     const flow = connectFlow(rt, () => {})
-    // provider 7 = custom, then id, baseURL, key
-    const answers = ["7", "mi-api", "https://host.example/v1", "secret-key"]
+    // Select "custom" by its position in the list (order-independent).
+    const customIdx = String(CONNECTABLE.findIndex((p) => p.id === "custom") + 1)
+    const answers = [customIdx, "mi-api", "https://host.example/v1", "secret-key"]
     let i = 0
     await runFlow(flow, () => answers[i++]!)
 
@@ -119,8 +120,8 @@ test(
   "connectFlow (Ollama) needs no key",
   withRuntime(async ({ rt }) => {
     const flow = connectFlow(rt, () => {})
-    // provider 6 = ollama; flow should complete with just that answer.
-    const answers = ["6"]
+    // Select "ollama" by its position; flow should complete with just that answer.
+    const answers = [String(CONNECTABLE.findIndex((p) => p.id === "ollama") + 1)]
     let i = 0
     await runFlow(flow, () => answers[i++]!)
     assert.equal(rt.providers.hasCredentials("ollama"), true)

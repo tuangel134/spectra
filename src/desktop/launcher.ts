@@ -16,15 +16,54 @@
  */
 
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, chmodSync } from "node:fs"
 import { createServer as netCreateServer } from "node:net"
-import { tmpdir, platform } from "node:os"
+import { tmpdir, platform, arch } from "node:os"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type { Runtime } from "../runtime.js"
 import { createServer } from "../server/index.js"
 import { color, BRAND, logger } from "../util/logger.js"
+
+const RELEASE_BASE = "https://github.com/tuangel134/spectra/releases/latest/download"
+
+/** The release asset name for this OS/arch, or null if we don't ship one. */
+function nativeAssetName(): string | null {
+  const p = platform()
+  const a = arch()
+  if (p === "linux" && a === "x64") return "spectra-desktop-linux-x86_64"
+  if (p === "darwin" && a === "arm64") return "spectra-desktop-macos-arm64"
+  if (p === "win32" && a === "x64") return "spectra-desktop-windows-x86_64.exe"
+  return null
+}
+
+/**
+ * Download the prebuilt native desktop binary from the GitHub Release for this
+ * OS/arch, cache it under desktop-native/target/release, and return its path.
+ * Best-effort: returns null (→ browser fallback) if unavailable.
+ */
+async function downloadNativeBinary(here: string, report: (s: string) => void): Promise<string | null> {
+  const asset = nativeAssetName()
+  if (!asset) return null
+  const root = join(here, "..", "..")
+  const exe = platform() === "win32" ? "spectra-desktop.exe" : "spectra-desktop"
+  const destDir = join(root, "desktop-native", "target", "release")
+  const dest = join(destDir, exe)
+  try {
+    report(`${BRAND} ${color.gray(`downloading native desktop (${asset})…`)}\n`)
+    const res = await fetch(`${RELEASE_BASE}/${asset}`, { redirect: "follow" })
+    if (!res.ok) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.length < 1024) return null // not a real binary (e.g. an error page)
+    mkdirSync(destDir, { recursive: true })
+    writeFileSync(dest, buf)
+    if (platform() !== "win32") chmodSync(dest, 0o755)
+    return dest
+  } catch {
+    return null // offline or blocked → fall back to a browser window
+  }
+}
 
 /** Resolve the path of an executable on PATH, or null if absent. */
 function which(bin: string): string | null {
@@ -147,9 +186,10 @@ export async function launchDesktop(rt: Runtime, projectRoot: string): Promise<v
     void shutdown().then(() => process.exit(0))
   })
 
-  // 1. Native binary (wry/tao), if built.
+  // 1. Native binary (wry/tao) — use a built one, or download the prebuilt
+  //    release binary for this OS/arch on first run.
   const here = dirname(fileURLToPath(import.meta.url))
-  const native = findNativeBinary(here)
+  const native = findNativeBinary(here) ?? (await downloadNativeBinary(here, stdoutWrite))
   if (native) {
     stdoutWrite(`${BRAND} ${color.gray("launching native desktop…")}\n`)
     await runWindow(native, [], { SPECTRA_URL: url, SPECTRA_CWD: projectRoot })
