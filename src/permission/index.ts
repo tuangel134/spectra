@@ -16,6 +16,7 @@ const TOOL_GROUP: Record<string, string> = {
   edit: "edit",
   write: "edit",
   apply_patch: "edit",
+  multiedit: "edit",
   glob: "glob",
   grep: "grep",
   list: "list",

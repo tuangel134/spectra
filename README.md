@@ -266,6 +266,19 @@ Niveles: `allow` (sin aprobación), `ask` (pide confirmación), `deny` (bloquead
 
 Para compilar el binario nativo (opcional, requiere Rust) mira [`desktop-native/README.md`](desktop-native/README.md) con las dependencias por SO.
 
+## 🐳 Docker
+
+Levanta la API + UI web en un contenedor (útil en un server o una Raspberry Pi):
+
+```bash
+docker build -t spectra .
+docker run --rm -p 4096:4096 -e SPECTRA_HOST=0.0.0.0 \
+  -e OPENAI_API_KEY=sk-... \
+  -v "$PWD":/work -w /work spectra
+```
+
+Monta tu proyecto en `/work` para que el agente opere sobre él. El modelo gratis funciona sin key; añade las que necesites con `-e`. `SPECTRA_HOST=0.0.0.0` publica el servidor fuera del contenedor.
+
 ## 🏗️ Arquitectura
 
 ```

@@ -64,7 +64,7 @@ export interface HookOutcome {
 
 const TOOL_CATEGORIES: Record<string, string[]> = {
   read: ["read", "grep", "glob"],
-  write: ["edit", "write", "apply_patch"],
+  write: ["edit", "write", "apply_patch", "multiedit"],
   shell: ["bash"],
   web: ["webfetch", "websearch"],
   spec: ["spec"],

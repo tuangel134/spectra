@@ -11,6 +11,8 @@ export interface HttpRequestOptions {
   timeout: number
   /** External abort signal (e.g. turn cancellation). */
   signal?: AbortSignal
+  /** Optional: notified before each retry (attempt#, wait ms, HTTP status). */
+  onRetry?: (attempt: number, waitMs: number, status?: number) => void
 }
 
 /**
@@ -34,7 +36,6 @@ export async function postJson<T>(options: HttpRequestOptions): Promise<T> {
   const maxRetries = 2
   let lastErr: ProviderError | undefined
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) await sleep(500 * Math.pow(2, attempt - 1))
     try {
       return await doPost<T>(options)
     } catch (err) {
@@ -42,9 +43,19 @@ export async function postJson<T>(options: HttpRequestOptions): Promise<T> {
       lastErr = err
       // Never retry a caller cancellation — propagate it promptly.
       if (options.signal?.aborted) throw err
-      // Retry transient failures: 5xx server errors AND network errors (no
-      // status). Client errors (4xx, incl. 402/429 handled by failover) throw.
-      if (err.status && err.status < 500) throw err
+      const isLast = attempt === maxRetries
+      const transient = !err.status || err.status >= 500 // 5xx or network error
+      // A 429 with a SHORT retry-after is a per-second/minute burst limit worth
+      // waiting out. A long (or absent) one means the quota is exhausted → let
+      // the loop's Autochange switch models instead of blocking here.
+      const shortRateLimit =
+        err.status === 429 && err.retryAfter !== undefined && err.retryAfter <= 8
+      if (isLast || (!transient && !shortRateLimit)) throw err
+      const waitMs = shortRateLimit
+        ? err.retryAfter! * 1000 + 250
+        : 500 * Math.pow(2, attempt)
+      options.onRetry?.(attempt + 1, waitMs, err.status)
+      await sleep(waitMs)
     }
   }
   throw lastErr!

@@ -73,6 +73,16 @@ export function renderMarkdown(text: string, width: number, theme: Theme): strin
       continue
     }
 
+    // Numbered lists: keep the number, wrap the rest under it.
+    const numbered = /^(\s*)(\d{1,3})[.)]\s+(.+)$/.exec(raw)
+    if (numbered) {
+      const marker = `${numbered[2]}. `
+      const wrapped = wrapLine(numbered[3]!, Math.max(4, width - marker.length))
+      out.push(accent(theme, marker) + (wrapped[0] ?? ""))
+      for (const cont of wrapped.slice(1)) out.push(" ".repeat(marker.length) + cont)
+      continue
+    }
+
     // Plain prose.
     for (const l of wrapLine(raw, width)) out.push(l)
   }
