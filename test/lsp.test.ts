@@ -33,8 +33,9 @@ test("LspClient initializes and collects publishDiagnostics", async () => {
     assert.equal(diags[0]!.line, 3)
   } finally {
     try { client?.close() } catch { /* ignore */ }
-    // maxRetries/retryDelay handle Windows releasing the child's handles late.
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 })
+    // Best-effort: on Windows the server's cwd briefly locks the temp dir, so a
+    // failed rmdir here must not fail the test (the OS/CI reclaims temp dirs).
+    try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 }) } catch { /* ignore */ }
   }
 })
 
@@ -50,7 +51,7 @@ test("LspManager.diagnose reports errors for a supported file", async () => {
     assert.equal(result.diagnostics.length, 1)
   } finally {
     try { mgr?.close() } catch { /* ignore */ }
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 })
+    try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 }) } catch { /* ignore */ }
   }
 })
 
