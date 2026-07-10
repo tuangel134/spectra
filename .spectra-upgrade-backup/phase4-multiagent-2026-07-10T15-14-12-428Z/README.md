@@ -367,8 +367,3 @@ Desktop is the primary Spectra workspace. It combines the persistent Core with
 a project explorer, tabbed editor, terminal, Git diff/status, LSP diagnostics,
 visual specs, security controls, and the agent chat. See
 [docs/DESKTOP_IDE.md](docs/DESKTOP_IDE.md).
-
-
-## Multi-agent isolation
-
-Spectra can execute spec tasks in isolated Git worktrees. File claims are locked, overlapping tasks are serialized, patches are reviewed against their declared files, validation runs before and after integration, and cherry-pick conflicts are aborted safely. See `docs/MULTIAGENT_ISOLATION.md`.

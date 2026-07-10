@@ -23,7 +23,6 @@ import { PluginManager } from "./plugin/index.js"
 import { ModelRouter, type RoutingConfig } from "./routing/index.js"
 import { MemoryStore, createMemoryTool } from "./memory/index.js"
 import { loadSteering } from "./steering/index.js"
-import { MultiAgentCoordinator } from "./multiagent/coordinator.js"
 import { loadClaudeCompatibility } from "./compat/claude.js";
 import { WorkspaceTrustManager } from "./security/trust.js"
 
@@ -52,7 +51,6 @@ export interface Runtime {
   plugins: PluginManager
   router: ModelRouter
   memory: MemoryStore
-  multiagent: MultiAgentCoordinator
   trust: WorkspaceTrustManager
   audit: AuditEntry[]
   pushAudit(category: string, action: string, detail?: string): void
@@ -82,7 +80,6 @@ export function createRuntime(options: { cwd?: string; configPath?: string } = {
     () => config.small_model ?? config.model,
   )
   const memory = new MemoryStore(projectRoot)
-  const multiagent = new MultiAgentCoordinator(projectRoot, config.spec.maxParallelTasks)
 
   // Register the skill tool (skills are discovered from disk).
   tools.register(createSkillTool(skills))
@@ -144,7 +141,7 @@ export function createRuntime(options: { cwd?: string; configPath?: string } = {
     skills,
     lsp,
     plugins,
-    router, memory, multiagent, trust, audit, pushAudit,
+    router, memory, trust, audit, pushAudit,
   }
   runtime.autorun = new AutorunManager(runtime, config.autorun)
   // The task tool delegates to subagents via the loop, so it needs the runtime.
@@ -190,7 +187,6 @@ export function reloadRuntime(rt: Runtime, options: { cwd?: string; configPath?:
   rt.plugins = fresh.plugins
   rt.router = fresh.router
   rt.memory = fresh.memory
-  rt.multiagent = fresh.multiagent
   rt.trust = fresh.trust
   rt.audit = fresh.audit
   rt.pushAudit = fresh.pushAudit

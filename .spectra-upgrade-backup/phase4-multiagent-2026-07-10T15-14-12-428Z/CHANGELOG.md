@@ -69,5 +69,3 @@
 - Added guarded file saves, terminal commands, Git status/diff, LSP problems, and editable specs.
 - Added a responsive agent pane and larger native IDE window.
 - Added cross-platform Desktop IDE CI and path/security regression tests.
-
-- Multi-agent isolation with Git worktrees, file leases, conflict-aware scheduling, patch review, validation, safe integration, and recovery.

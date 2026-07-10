@@ -29,7 +29,6 @@ import { detectSpecIntent } from "../spec/detect.js"
 import type { Clarification } from "../spec/clarify.js"
 import { runSpecWorkflow, generateClarifyingQuestions, autoAnswerQuestions } from "../workflow/spec-workflow.js"
 import { reloadRuntime, connectIntegrations } from "../runtime.js";
-import { SpectraIsolatedAgentRunner } from "../multiagent/agent-runner.js"
 import { applySecurityProfile, isSecurityProfile, listSecurityProfiles } from "../security/profiles.js"
 import {
   detectVerifyCommands,
@@ -704,60 +703,6 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       }
     }),
 
-
-    // ----- Isolated multi-agent execution -----
-    compile("GET", "/api/multiagent", (_req, res) => {
-      json(res, 200, { runs: rt.multiagent.list(), locks: rt.multiagent.locks.list() })
-    }),
-    compile("POST", "/api/multiagent/plan", async (req, res) => {
-      const body = await readBody(req)
-      const specId = String(body["specId"] ?? "").trim()
-      if (!specId) return json(res, 400, { error: "specId required" })
-      const meta = rt.specs.readMeta(specId)
-      if (!meta) return json(res, 404, { error: "spec not found" })
-      const tasks = rt.specs.loadTasks(specId)
-      json(res, 200, { spec: meta, plan: rt.multiagent.plan(tasks) })
-    }),
-    compile("POST", "/api/multiagent/runs", async (req, res) => {
-      const body = await readBody(req)
-      const specId = String(body["specId"] ?? "").trim()
-      if (!specId) return json(res, 400, { error: "specId required" })
-      const meta = rt.specs.readMeta(specId)
-      if (!meta) return json(res, 404, { error: "spec not found" })
-      try {
-        const run = rt.multiagent.create(meta.title, rt.specs.loadTasks(specId), specId)
-        rt.pushAudit("multiagent", "Created isolated run " + run.id, specId)
-        json(res, 201, { run })
-      } catch (error) {
-        json(res, 409, { error: (error as Error).message })
-      }
-    }),
-    compile("GET", "/api/multiagent/runs/:id", (_req, res, params) => {
-      try { json(res, 200, { run: rt.multiagent.get(params["id"]!) }) }
-      catch (error) { json(res, 404, { error: (error as Error).message }) }
-    }),
-    compile("POST", "/api/multiagent/runs/:id/start", (_req, res, params) => {
-      const id = params["id"]!
-      let run
-      try { run = rt.multiagent.get(id) } catch (error) { return json(res, 404, { error: (error as Error).message }) }
-      if (!["planned", "interrupted", "failed"].includes(run.status)) {
-        return json(res, 409, { error: "run cannot start from " + run.status })
-      }
-      const runner = new SpectraIsolatedAgentRunner(rt)
-      void rt.multiagent.execute(id, runner, (message) => rt.pushAudit("multiagent", message, id))
-        .then((finished) => rt.pushAudit("multiagent", "Run " + finished.status, id))
-        .catch((error) => rt.pushAudit("multiagent", "Run failed: " + (error as Error).message, id))
-      json(res, 202, { ok: true, runId: id })
-    }),
-    compile("POST", "/api/multiagent/runs/:id/cancel", (_req, res, params) => {
-      try {
-        const run = rt.multiagent.cancel(params["id"]!)
-        rt.pushAudit("multiagent", "Cancelled run " + run.id)
-        json(res, 200, { ok: true, run })
-      } catch (error) {
-        json(res, 404, { error: (error as Error).message })
-      }
-    }),
     // ----- Long-Running / Full-Stack autonomous mode -----
     compile("GET", "/api/autorun", (_req, res) => {
       json(res, 200, {
