@@ -372,8 +372,3 @@ visual specs, security controls, and the agent chat. See
 ## Multi-agent isolation
 
 Spectra can execute spec tasks in isolated Git worktrees. File claims are locked, overlapping tasks are serialized, patches are reviewed against their declared files, validation runs before and after integration, and cherry-pick conflicts are aborted safely. See `docs/MULTIAGENT_ISOLATION.md`.
-
-
-## Adaptive Desktop profiles
-
-Spectra Desktop includes a first-run onboarding and a versioned user profile for experience level, autonomy, language, explanation depth, privacy, model strategy, accessibility, and optional cost limits. Profiles can be exported and imported without API keys. Model Lab detects Ollama, LM Studio, llama.cpp and vLLM on loopback, and can probe any OpenAI-compatible endpoint. See `docs/ADAPTIVE_DESKTOP.md`.

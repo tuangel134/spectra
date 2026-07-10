@@ -29,7 +29,6 @@ import { detectSpecIntent } from "../spec/detect.js"
 import type { Clarification } from "../spec/clarify.js"
 import { runSpecWorkflow, generateClarifyingQuestions, autoAnswerQuestions } from "../workflow/spec-workflow.js"
 import { reloadRuntime, connectIntegrations } from "../runtime.js";
-import { adaptationFor } from "../adaptation/index.js"
 import { SpectraIsolatedAgentRunner } from "../multiagent/agent-runner.js"
 import { applySecurityProfile, isSecurityProfile, listSecurityProfiles } from "../security/profiles.js"
 import {
@@ -706,56 +705,6 @@ export function createServer(rt: Runtime, options: ServerOptions) {
     }),
 
 
-
-    // ----- Adaptive Desktop and universal user profile -----
-    compile("GET", "/api/adaptation/profile", (_req, res) => {
-      const service = adaptationFor(rt.config.projectRoot)
-      json(res, 200, { profile: service.profiles.load() })
-    }),
-    compile("POST", "/api/adaptation/profile", async (req, res) => {
-      const body = await readBody(req)
-      try {
-        const service = adaptationFor(rt.config.projectRoot)
-        const profile = service.profiles.save(body["profile"] ?? body)
-        rt.pushAudit("adaptation", "Updated user adaptation profile")
-        json(res, 200, { ok: true, profile, recommendations: service.dashboard()["recommendations"] })
-      } catch (error) { json(res, 400, { error: (error as Error).message }) }
-    }),
-    compile("GET", "/api/adaptation/profile/export", (_req, res) => {
-      json(res, 200, adaptationFor(rt.config.projectRoot).profiles.export())
-    }),
-    compile("POST", "/api/adaptation/profile/import", async (req, res) => {
-      const body = await readBody(req)
-      try {
-        const profile = adaptationFor(rt.config.projectRoot).profiles.import(body["profile"] ?? body)
-        rt.pushAudit("adaptation", "Imported user adaptation profile")
-        json(res, 200, { ok: true, profile })
-      } catch (error) { json(res, 400, { error: (error as Error).message }) }
-    }),
-    compile("GET", "/api/adaptation/dashboard", (_req, res) => {
-      json(res, 200, adaptationFor(rt.config.projectRoot).dashboard())
-    }),
-    compile("GET", "/api/adaptation/ecosystem", (_req, res) => {
-      const dashboard = adaptationFor(rt.config.projectRoot).dashboard()
-      json(res, 200, { ecosystem: dashboard["ecosystem"] })
-    }),
-    compile("GET", "/api/adaptation/models/local", async (_req, res) => {
-      json(res, 200, { runtimes: await adaptationFor(rt.config.projectRoot).localModels() })
-    }),
-    compile("POST", "/api/adaptation/models/probe", async (req, res) => {
-      const body = await readBody(req)
-      const baseURL = String(body["baseURL"] ?? "").trim()
-      if (!baseURL) return json(res, 400, { error: "baseURL required" })
-      try {
-        const result = await adaptationFor(rt.config.projectRoot).probe({
-          baseURL,
-          apiKey: typeof body["apiKey"] === "string" ? body["apiKey"] : undefined,
-          model: typeof body["model"] === "string" ? body["model"] : undefined,
-          deep: body["deep"] === true,
-        })
-        json(res, 200, result)
-      } catch (error) { json(res, 400, { error: (error as Error).message }) }
-    }),
     // ----- Isolated multi-agent execution -----
     compile("GET", "/api/multiagent", (_req, res) => {
       json(res, 200, { runs: rt.multiagent.list(), locks: rt.multiagent.locks.list() })

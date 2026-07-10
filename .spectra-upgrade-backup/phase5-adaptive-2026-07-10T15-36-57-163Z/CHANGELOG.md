@@ -71,5 +71,3 @@
 - Added cross-platform Desktop IDE CI and path/security regression tests.
 
 - Multi-agent isolation with Git worktrees, file leases, conflict-aware scheduling, patch review, validation, safe integration, and recovery.
-
-- Adaptive Desktop onboarding, exportable user profiles, accessibility, bilingual UI foundation, local model detection, Model Lab diagnostics, and unified ecosystem inventory.

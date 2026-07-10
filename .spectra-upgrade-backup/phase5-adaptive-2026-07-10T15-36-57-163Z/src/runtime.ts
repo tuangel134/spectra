@@ -23,7 +23,6 @@ import { PluginManager } from "./plugin/index.js"
 import { ModelRouter, type RoutingConfig } from "./routing/index.js"
 import { MemoryStore, createMemoryTool } from "./memory/index.js"
 import { loadSteering } from "./steering/index.js"
-import { adaptationFor, adaptationPrompt } from "./adaptation/index.js"
 import { MultiAgentCoordinator } from "./multiagent/coordinator.js"
 import { loadClaudeCompatibility } from "./compat/claude.js";
 import { WorkspaceTrustManager } from "./security/trust.js"
@@ -114,7 +113,7 @@ export function createRuntime(options: { cwd?: string; configPath?: string } = {
     router,
     autoApprove: () => config.autoApprove,
     hooks,
-    steering: () => [loadSteering(loaded.projectRoot), adaptationPrompt(adaptationFor(loaded.projectRoot).profiles.load())].filter(Boolean).join("\n\n"),
+    steering: () => loadSteering(loaded.projectRoot),
   }
   const loop = new AgentLoop(loopDeps)
 
