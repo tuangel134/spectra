@@ -62,3 +62,10 @@
 - Added SQLite WAL event persistence with a JSONL fallback for Node versions without built-in SQLite.
 - Added durable recovery summaries, client heartbeats, and Core lifecycle commands.
 - Added cross-platform Core daemon CI and regression tests.
+
+### Phase 3 — Desktop IDE
+
+- Added the Desktop project explorer, tabbed editor, quick-open, and command palette.
+- Added guarded file saves, terminal commands, Git status/diff, LSP problems, and editable specs.
+- Added a responsive agent pane and larger native IDE window.
+- Added cross-platform Desktop IDE CI and path/security regression tests.

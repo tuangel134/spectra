@@ -12,6 +12,7 @@ import * as nodeFs from "node:fs"
 import * as nodePath from "node:path"
 
 import type { Runtime } from "../runtime.js"
+import { IdeService } from "../ide/service.js"
 import type { CoreStateStore } from "../core/state-store.js"
 import { CORE_PROTOCOL_VERSION } from "../core/protocol.js"
 import { staticCatalog } from "../provider/catalog.js"
@@ -584,6 +585,68 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       const pushResult = await pushToGitHub(rt.config.projectRoot, { token, private: isPrivate }, description)
       rt.pushAudit("github", pushResult.ok ? `Pushed to ${pushResult.repoUrl}` : `Push failed: ${pushResult.error}`)
       json(res, 200, pushResult)
+    }),
+
+    // ----- Desktop IDE workspace (Phase 3) -----
+    compile("GET", "/api/ide/bootstrap", async (_req, res) => {
+      json(res, 200, await new IdeService(rt).bootstrap())
+    }),
+    compile("POST", "/api/ide/file/read", async (req, res) => {
+      const body = await readBody(req)
+      const result = new IdeService(rt).readFile(String(body["path"] ?? ""))
+      json(res, result.ok ? 200 : 400, result)
+    }),
+    compile("POST", "/api/ide/file/save", async (req, res) => {
+      const body = await readBody(req)
+      const result = new IdeService(rt).saveFile(
+        String(body["path"] ?? ""),
+        String(body["content"] ?? ""),
+        body["approved"] === true,
+      )
+      json(res, result.ok ? 200 : result.needsApproval ? 409 : 400, result)
+    }),
+    compile("POST", "/api/ide/diagnostics", async (req, res) => {
+      const body = await readBody(req)
+      const result = await new IdeService(rt).diagnostics(String(body["path"] ?? ""))
+      json(res, result.ok || result.metadata ? 200 : 400, result)
+    }),
+    compile("POST", "/api/ide/terminal", async (req, res) => {
+      const body = await readBody(req)
+      const result = await new IdeService(rt).terminal(
+        String(body["command"] ?? ""),
+        body["approved"] === true,
+        Number(body["timeout"] ?? 120_000),
+      )
+      json(res, result.ok ? 200 : result.needsApproval ? 409 : 400, result)
+    }),
+    compile("POST", "/api/ide/git/status", async (_req, res) => {
+      const result = await new IdeService(rt).gitStatus()
+      json(res, result.ok ? 200 : 400, result)
+    }),
+    compile("POST", "/api/ide/git/diff", async (req, res) => {
+      const body = await readBody(req)
+      const path = typeof body["path"] === "string" && body["path"] ? String(body["path"]) : undefined
+      const result = await new IdeService(rt).gitDiff(path, body["staged"] === true)
+      json(res, result.ok ? 200 : 400, result)
+    }),
+    compile("POST", "/api/ide/spec/read", async (req, res) => {
+      const body = await readBody(req)
+      const result = new IdeService(rt).readSpec(String(body["id"] ?? ""))
+      json(res, result.ok ? 200 : 404, result)
+    }),
+    compile("POST", "/api/ide/spec/save", async (req, res) => {
+      const body = await readBody(req)
+      const document = String(body["document"] ?? "")
+      if (!["requirements", "design", "tasks"].includes(document)) {
+        return json(res, 400, { ok: false, error: "invalid spec document" })
+      }
+      const result = new IdeService(rt).saveSpec(
+        String(body["id"] ?? ""),
+        document as "requirements" | "design" | "tasks",
+        String(body["content"] ?? ""),
+        body["approved"] === true,
+      )
+      json(res, result.ok ? 200 : result.needsApproval ? 409 : 400, result)
     }),
 
     // ----- Filesystem (for the Monaco editor) -----

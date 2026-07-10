@@ -360,3 +360,10 @@ spectra core restart
 ```
 
 See [Core architecture](docs/CORE_ARCHITECTURE.md).
+
+## Spectra Desktop IDE
+
+Desktop is the primary Spectra workspace. It combines the persistent Core with
+a project explorer, tabbed editor, terminal, Git diff/status, LSP diagnostics,
+visual specs, security controls, and the agent chat. See
+[docs/DESKTOP_IDE.md](docs/DESKTOP_IDE.md).
