@@ -34,7 +34,8 @@ export class AgentRegistry {
           topP: cfg.top_p ?? existing.topP,
           maxSteps: cfg.steps ?? existing.maxSteps,
           permission: { ...existing.permission, ...cfg.permission },
-          hidden: cfg.hidden ?? existing.hidden,
+          allowedTools: cfg.tools ?? existing.allowedTools,
+        hidden: cfg.hidden ?? existing.hidden,
           disabled: cfg.disable ?? existing.disabled,
           color: cfg.color ?? existing.color,
         })
@@ -52,7 +53,7 @@ export class AgentRegistry {
           hidden: cfg.hidden ?? false,
           disabled: cfg.disable ?? false,
           color: cfg.color,
-          allowedTools: null,
+          allowedTools: cfg.tools ?? null,
         })
       }
     }

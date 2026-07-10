@@ -13,6 +13,7 @@ import * as nodePath from "node:path"
 
 import type { Runtime } from "../runtime.js"
 import { staticCatalog } from "../provider/catalog.js"
+import { fetchLiveModelsDetailed, normalizeOpenAIBaseURL } from "../provider/model-catalog.js"
 import { COMMANDS } from "../commands.js"
 import { saveProviderKey, saveModel, savePermission, removeProvider, saveCustomProvider, saveCompaction, saveHeadroom, saveRouting, saveSpecDetect, saveAutorun, saveAutoApprove } from "../config/writer.js"
 import { WEB_HTML } from "../web/html.js"
@@ -797,36 +798,69 @@ export function createServer(rt: Runtime, options: ServerOptions) {
     }),
 
     // ----- Providers: disconnect + add custom -----
-    compile("POST", "/api/provider/disconnect", async (req, res) => {
-      const body = await readBody(req)
-      const id = String(body["provider"] ?? "")
-      if (!id) return json(res, 400, { error: "provider required" })
-      removeProvider(id)
-      rt.pushAudit("provider", `Disconnected ${id}`)
-      json(res, 200, { ok: true })
-    }),
+  compile("POST", "/api/provider/disconnect", async (req, res) => {
+    const body = await readBody(req)
+    const id = String(body["provider"] ?? "").trim()
+    if (!id) return json(res, 400, { error: "provider required" })
+    removeProvider(id)
+    rt.providers.deleteProvider(id)
+    rt.pushAudit("provider", `Disconnected ${id}`)
+    json(res, 200, { ok: true })
+  }),
+  compile("POST", "/api/provider/custom", async (req, res) => {
+    const body = await readBody(req)
+    const id = String(body["id"] ?? "").trim().toLowerCase()
+    const rawBaseURL = String(body["baseURL"] ?? "").trim()
+    const apiKey = body["apiKey"] ? String(body["apiKey"]).trim() : ""
+    const manualModel = body["model"] ? String(body["model"]).trim() : ""
 
-    compile("POST", "/api/provider/custom", async (req, res) => {
-      const body = await readBody(req)
-      const id = String(body["id"] ?? "")
-      const baseURL = String(body["baseURL"] ?? "")
-      const apiKey = body["apiKey"] ? String(body["apiKey"]) : ""
-      const model = body["model"] ? String(body["model"]) : undefined
-      if (!id || !/^https?:\/\//.test(baseURL)) {
-        return json(res, 400, { error: "id and a valid baseURL (http[s]://) required" })
-      }
-      saveCustomProvider({ id, baseURL, apiKey, model })
-      rt.providers.upsertProvider(id, {
-        sdk: "openai-compatible",
-        baseURL,
-        options: { apiKey },
-        ...(model ? { models: { [model]: { name: model } } } : {}),
+    if (!/^[a-z0-9][a-z0-9._-]*$/.test(id)) {
+      return json(res, 400, { error: "Provider id must use lowercase letters, numbers, dot, underscore or dash" })
+    }
+
+    let baseURL: string
+    try {
+      baseURL = normalizeOpenAIBaseURL(rawBaseURL)
+    } catch (error) {
+      return json(res, 400, { error: (error as Error).message })
+    }
+
+    const discovery = await fetchLiveModelsDetailed(baseURL, apiKey || undefined)
+    const models = [...new Set([...(manualModel ? [manualModel] : []), ...discovery.models])]
+    if (models.length === 0) {
+      return json(res, 422, {
+        error: discovery.error
+          ? `Could not discover models: ${discovery.error}. Enter a model id manually.`
+          : "No models found. Enter a model id manually.",
+        endpoint: discovery.endpoint,
       })
-      rt.pushAudit("provider", `Added custom provider ${id}`, baseURL)
-      json(res, 200, { ok: true })
-    }),
+    }
 
-    // ----- Steering files CRUD -----
+    const modelConfig: Record<string, { name: string }> = {}
+    for (const model of models) modelConfig[model] = { name: model }
+
+    saveCustomProvider({ id, baseURL, apiKey: apiKey || undefined, models })
+    rt.providers.upsertProvider(id, {
+      sdk: "openai-compatible",
+      baseURL,
+      ...(apiKey ? { options: { apiKey } } : {}),
+      models: modelConfig,
+    })
+
+    const warning = discovery.error && manualModel ? discovery.error : undefined
+    rt.pushAudit("provider", `Added custom provider ${id} (${models.length} model(s))`, baseURL)
+    json(res, 200, {
+      ok: true,
+      id,
+      baseURL,
+      models,
+      selectedModel: `${id}/${manualModel || models[0]}`,
+      discovered: discovery.models.length,
+      ...(warning ? { warning } : {}),
+    })
+  }),
+
+  // ----- Steering files CRUD -----
     compile("POST", "/api/steering", async (req, res) => {
       const body = await readBody(req)
       const name = sanitizeName(String(body["name"] ?? ""))
@@ -942,19 +976,35 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       })
     }),
 
-    // ----- Full model catalog -----
-    compile("GET", "/api/catalog", (_req, res) => {
-      const entries = staticCatalog().map((e) => ({
-        id: e.id,
-        providerId: e.providerId,
-        label: e.label,
-        free: e.free,
-        connected: e.free || rt.providers.hasCredentials(e.providerId),
-      }))
-      json(res, 200, entries)
-    }),
+    // ----- Full model catalog (static + runtime/custom providers) -----
+  compile("GET", "/api/catalog", (_req, res) => {
+    const entries = new Map<string, { id: string; providerId: string; label: string; free: boolean; connected: boolean }>()
+    for (const entry of staticCatalog()) {
+      entries.set(entry.id, {
+        id: entry.id,
+        providerId: entry.providerId,
+        label: entry.label,
+        free: entry.free,
+        connected: entry.free || rt.providers.hasCredentials(entry.providerId),
+      })
+    }
+    for (const provider of rt.providers.list()) {
+      for (const model of provider.models) {
+        const id = `${provider.id}/${model.id}`
+        if (entries.has(id)) continue
+        entries.set(id, {
+          id,
+          providerId: provider.id,
+          label: `${provider.name} · ${model.name}`,
+          free: provider.id === "free",
+          connected: rt.providers.hasCredentials(provider.id),
+        })
+      }
+    }
+    json(res, 200, [...entries.values()])
+  }),
 
-    // ----- Connect a provider -----
+  // ----- Connect a provider -----
     compile("POST", "/api/connect", async (req, res) => {
       const body = await readBody(req)
       const provider = String(body["provider"] ?? "")

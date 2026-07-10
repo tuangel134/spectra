@@ -9,6 +9,7 @@
 import type { Provider, CompletionRequest, CompletionResult, ChatMessage, ToolCallRequest, SdkFamily } from "./types.js"
 import { postJson, parseRetryAfter } from "./http.js"
 import { ProviderError } from "./types.js"
+import { openAIEndpoint } from "./model-catalog.js"
 
 interface OpenAIToolCall {
   id: string
@@ -43,7 +44,7 @@ export class OpenAIProvider implements Provider {
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
     const { model } = request
-    const url = `${model.baseURL.replace(/\/$/, "")}/chat/completions`
+    const url = openAIEndpoint(model.baseURL, "chat/completions")
 
     const messages = this.buildMessages(request.system, request.messages)
 

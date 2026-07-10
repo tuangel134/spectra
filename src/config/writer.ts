@@ -121,17 +121,29 @@ export function saveCustomProvider(opts: {
   baseURL: string
   apiKey?: string
   model?: string
+  models?: string[]
 }): string {
   const path = globalConfigPath()
   updateConfig(path, (config) => {
     config.provider ??= {}
-    const existing = config.provider[opts.id] ?? {}
-    config.provider[opts.id] = {
+    const id = opts.id.trim()
+    const existing = config.provider[id] ?? {}
+    const apiKey = opts.apiKey?.trim()
+    const options = { ...existing.options }
+    if (apiKey) options.apiKey = apiKey
+
+    const ids = [...new Set([...(opts.models ?? []), ...(opts.model ? [opts.model] : [])]
+      .map((model) => model.trim())
+      .filter(Boolean))]
+    const models = { ...existing.models }
+    for (const model of ids) models[model] = { ...models[model], name: models[model]?.name ?? model }
+
+    config.provider[id] = {
       ...existing,
       sdk: "openai-compatible",
-      baseURL: opts.baseURL,
-      options: { ...existing.options, apiKey: opts.apiKey ?? "" },
-      models: opts.model ? { ...existing.models, [opts.model]: { name: opts.model } } : existing.models,
+      baseURL: opts.baseURL.trim(),
+      options,
+      ...(Object.keys(models).length ? { models } : {}),
     }
   })
   return path

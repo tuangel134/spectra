@@ -23,6 +23,7 @@ import { PluginManager } from "./plugin/index.js"
 import { ModelRouter, type RoutingConfig } from "./routing/index.js"
 import { MemoryStore, createMemoryTool } from "./memory/index.js"
 import { loadSteering } from "./steering/index.js"
+import { loadClaudeCompatibility } from "./compat/claude.js"
 
 export interface AuditEntry {
   id: string
@@ -56,7 +57,9 @@ export interface Runtime {
 export function createRuntime(options: { cwd?: string; configPath?: string } = {}): Runtime {
   const loaded = loadConfig(options)
   const { config, projectRoot } = loaded
-
+  const claude = loadClaudeCompatibility(projectRoot)
+  config.agent = { ...claude.agents, ...config.agent }
+  config.mcp = { ...claude.mcp, ...config.mcp }
   const providers = new ProviderRegistry(config)
   const agents = new AgentRegistry(config)
   const tools = new ToolRegistry()

@@ -143,6 +143,11 @@ export class ProviderRegistry {
     }
   }
 
+  /** Remove a provider from the active runtime registry. */
+  deleteProvider(id: string): void {
+    delete this.providers[id]
+  }
+
   /** The base URL for a provider (user override or known default), or null. */
   baseUrlFor(id: string): string | null {
     const u = this.providers[id]
@@ -180,6 +185,8 @@ export class ProviderRegistry {
     const known = KNOWN[providerId]
     const userConfig = this.providers[providerId]
     if (userConfig?.options?.apiKey) return true
+    // Local/custom OpenAI-compatible APIs often intentionally have no key.
+    if (!known && userConfig?.baseURL && userConfig.sdk === "openai-compatible") return true
     const envKey = known?.envKey ?? `${providerId.toUpperCase()}_API_KEY`
     return Boolean(process.env[envKey])
   }

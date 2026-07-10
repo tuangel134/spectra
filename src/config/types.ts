@@ -23,6 +23,8 @@ export interface AgentConfig {
   top_p?: number
   steps?: number
   permission?: PermissionMap
+  /** Optional tool allowlist (Claude Code subagent compatible). */
+  tools?: string[]
   hidden?: boolean
   color?: string
   disable?: boolean
