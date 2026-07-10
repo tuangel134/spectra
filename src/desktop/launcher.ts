@@ -19,11 +19,10 @@ import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, chmodSync, renameSync } from "node:fs"
 import { createServer as netCreateServer } from "node:net"
 import { tmpdir, platform, arch } from "node:os"
-import { join, dirname } from "node:path"
+import { join, dirname, basename } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type { Runtime } from "../runtime.js"
-import { createServer } from "../server/index.js"
 import { color, BRAND, logger } from "../util/logger.js"
 
 const RELEASE_BASE = "https://github.com/tuangel134/spectra/releases/latest/download"
@@ -174,36 +173,47 @@ function openDefaultBrowser(url: string): void {
  * Resolves when the desktop window closes (app-mode/Tauri) or on Ctrl-C
  * (default-browser fallback).
  */
-export async function launchDesktop(rt: Runtime, projectRoot: string): Promise<void> {
-  const host = "127.0.0.1"
-  const preferred = rt.config.config.server?.port ?? 4123
-  const port = await findFreePort(preferred)
-  const server = createServer(rt, { port, hostname: host, cors: [`http://${host}:${port}`] })
-  await server.listen()
-  const url = `http://${host}:${port}/desktop`
+export async function launchDesktop(rt: Runtime | undefined, projectRoot: string): Promise<void> {
+  const { ensureCore, startCoreHeartbeat } = await import("../core/supervisor.js")
+  const preferred = await findFreePort(rt?.config.config.server?.port ?? 4123)
 
+  // Older callers may already have built a runtime before dispatching desktop.
+  // Flush and detach it so the daemon is the single owner of project state.
+  if (rt) {
+    try { rt.sessions.flush() } catch { /* best effort */ }
+    try { rt.mcp.close() } catch { /* best effort */ }
+    try { rt.lsp.close() } catch { /* best effort */ }
+  }
+
+  const core = await ensureCore(projectRoot, {
+    preferredPort: preferred,
+    report: (message) => stdoutWrite(`${BRAND} ${color.gray(message)}\n`),
+  })
+  const url = core.url + "/desktop"
+  const stopHeartbeat = startCoreHeartbeat(core)
   let closed = false
-  const shutdown = async (): Promise<void> => {
+  const detach = (): void => {
     if (closed) return
     closed = true
-    try {
-      await server.close()
-    } catch {
-      /* ignore */
-    }
+    stopHeartbeat()
   }
-  process.on("SIGINT", () => {
-    void shutdown().then(() => process.exit(0))
-  })
+  process.once("SIGINT", () => { detach(); process.exit(0) })
+  process.once("SIGTERM", () => { detach(); process.exit(0) })
+
+  stdoutWrite(`${BRAND} ${color.gray(core.reused ? "reconnected to persistent Spectra Core" : "persistent Spectra Core ready")}\n`)
 
   // 1. Native binary (wry/tao) — use a built one, or download the prebuilt
-  //    release binary for this OS/arch on first run.
+  // release binary for this OS/arch on first run.
   const here = dirname(fileURLToPath(import.meta.url))
   const native = findNativeBinary(here) ?? (await downloadNativeBinary(here, stdoutWrite))
   if (native) {
     stdoutWrite(`${BRAND} ${color.gray("launching native desktop…")}\n`)
-    await runWindow(native, [], { SPECTRA_URL: url, SPECTRA_CWD: projectRoot, SPECTRA_TITLE: `Spectra — ${projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? "Workspace"}` })
-    await shutdown()
+    await runWindow(native, [], {
+      SPECTRA_URL: url,
+      SPECTRA_CWD: projectRoot,
+      SPECTRA_TITLE: "Spectra — " + (basename(projectRoot) || "Workspace"),
+    })
+    detach()
     return
   }
 
@@ -212,7 +222,7 @@ export async function launchDesktop(rt: Runtime, projectRoot: string): Promise<v
   if (chrome) {
     stdoutWrite(`${BRAND} ${color.gray("launching desktop window…")}\n`)
     const profileDir = mkdtempSync(join(tmpdir(), "spectra-desktop-"))
-    const args = [
+    const windowArgs = [
       `--app=${url}`,
       `--user-data-dir=${profileDir}`,
       "--no-first-run",
@@ -220,23 +230,17 @@ export async function launchDesktop(rt: Runtime, projectRoot: string): Promise<v
       "--class=Spectra",
       "--window-size=1180,760",
     ]
-    await runWindow(chrome, args, {})
-    try {
-      rmSync(profileDir, { recursive: true, force: true })
-    } catch {
-      /* ignore */
-    }
-    await shutdown()
+    await runWindow(chrome, windowArgs, {})
+    try { rmSync(profileDir, { recursive: true, force: true }) } catch { /* ignore */ }
+    detach()
     return
   }
 
-  // 3. Fallback: default browser; keep the server running until Ctrl-C.
+  // 3. Fallback: default browser. Core stays alive after this process closes.
   stdoutWrite(`${BRAND} web UI at ${color.cyan(url)}\n`)
-  stdoutWrite(color.gray("Opening your browser. Press Ctrl-C to stop the desktop engine.\n"))
+  stdoutWrite(color.gray("Opening your browser. Spectra Core will remain available for reconnection.\n"))
   openDefaultBrowser(url)
-  await new Promise<void>(() => {
-    /* run until SIGINT */
-  })
+  await new Promise(() => { /* run until SIGINT */ })
 }
 
 /** Spawn a window process and resolve when it exits. */

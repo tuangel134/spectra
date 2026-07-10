@@ -77,7 +77,7 @@ export const DESKTOP_HTML = String.raw`<!doctype html>
     var trust=data.trust;var trusted=trust.trusted;
     el('trustDot').className='dot '+(trusted?'ok':'warn');
     el('trustText').textContent=trusted?(trust.state==='implicit'?'No executable assets':'Trusted'):(trust.state==='changed'?'Changed':'Restricted');
-    el('modeStatus').textContent='Profile: '+data.profile;
+    el('modeStatus').textContent='Profile: '+data.profile+(state.core?' · Core '+(state.core.managed?'persistent':'embedded'):'');
     el('trustStatus').textContent='Workspace: '+trust.state;
     el('pathStatus').textContent=trust.projectRoot;
     el('project').textContent=trust.projectRoot;
@@ -93,7 +93,7 @@ export const DESKTOP_HTML = String.raw`<!doctype html>
     el('restrictButton').disabled=!trusted&&trust.state!=='changed';
   }
   function refreshSecurity(){return api('/api/security/status').then(function(data){state.security=data;state.profiles=data.profiles||[];if(data.profile==='legacy'&&!state.selected){state.selected='balanced';el('finishOnboarding').disabled=false}renderProfiles();renderSecurity();if(data.profile==='legacy')el('onboardingModal').classList.add('show')})}
-  function refreshRecovery(){return api('/api/autorun').then(function(data){el('recoveryBanner').classList.toggle('show',!!data.hasResumable&&!data.running)})}
+  function refreshRecovery(){return Promise.all([api('/api/autorun'),api('/api/core/status')]).then(function(values){var data=values[0],core=values[1];state.core=core;el('recoveryBanner').classList.toggle('show',!!data.hasResumable&&!data.running||!!(core.recovery&&core.recovery.interrupted&&!data.running));if(state.security)renderSecurity()})}
   function refresh(){return Promise.all([refreshSecurity(),refreshRecovery()]).then(function(){setOnline(true)}).catch(function(){setOnline(false)})}
   el('profileSelect').onchange=function(){var profile=this.value;post('/api/security/profile',{profile:profile}).then(refreshSecurity).catch(function(err){alert(err.message)})};
   el('finishOnboarding').onclick=function(){if(!state.selected)return;post('/api/security/profile',{profile:state.selected}).then(function(){el('onboardingModal').classList.remove('show');return refreshSecurity()}).catch(function(err){alert(err.message)})};

@@ -348,3 +348,15 @@ Publicado bajo la licencia MIT. Mira [`LICENSE`](LICENSE).
 <div align="center">
 <sub><strong>Spectra</strong> — Piensa en specs. Ejecuta en paralelo. Desde tu terminal. ⚡</sub>
 </div>
+
+### Persistent Spectra Core
+
+Spectra Desktop uses a persistent, project-scoped Core daemon. Closing and reopening the window reconnects to the same runtime and recoverable work.
+
+```bash
+spectra core status
+spectra core stop
+spectra core restart
+```
+
+See [Core architecture](docs/CORE_ARCHITECTURE.md).

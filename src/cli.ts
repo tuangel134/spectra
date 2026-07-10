@@ -97,6 +97,7 @@ function printHelp(): void {
     ["spectra freebuff", "Start the Freebuff proxy (free models, no login)"],
     ["spectra agent", "List available agents"],
     ["spectra init", "Initialize .spectra in this project"],
+  ["spectra core <status|start|stop|restart>", "Control the persistent project Core daemon"],
     ["spectra doctor", "Check your environment & config (Node, git, model, keys)"],
     ["spectra update", "Update Spectra to the latest version and rebuild"],
     ["spectra completion <shell>", "Print a shell completion script (bash/zsh/fish/pwsh)"],
@@ -168,6 +169,25 @@ async function main(): Promise<void> {
   // `spectra --new` / `-n` launches the default interactive UI with a fresh
   // session (the flag is still read from argv inside the default case).
   if (command === "--new" || command === "-n") command = undefined
+
+
+  // Desktop owns a persistent Core process. Handle these commands before
+  // constructing a second in-process runtime in the launcher process.
+  if (command === "core-daemon") {
+    const { runCoreDaemonCli } = await import("./core/daemon.js")
+    await runCoreDaemonCli(argv.slice(1))
+    return
+  }
+  if (command === "core") {
+    const { runCoreCommand } = await import("./core/supervisor.js")
+    await runCoreCommand(argv.slice(1), process.cwd())
+    return
+  }
+  if (command === "desktop") {
+    const { launchDesktop } = await import("./desktop/launcher.js")
+    await launchDesktop(undefined, process.cwd())
+    return
+  }
 
   const rt = createRuntime()
   // Connect MCP servers (if any) and register their tools. No-op when none

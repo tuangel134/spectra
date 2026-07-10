@@ -54,3 +54,11 @@
 - Project hooks are asynchronous, bounded, shell-quoted, and trust-gated.
 - JavaScript plugins and MCP startup are blocked in restricted workspaces.
 - Added native Desktop CI on Linux, Windows, and macOS.
+
+## Phase 2 — Persistent Spectra Core
+
+- Desktop now reconnects to a project-scoped Core daemon instead of owning the runtime in its window process.
+- Added versioned Core protocol and compatibility checks.
+- Added SQLite WAL event persistence with a JSONL fallback for Node versions without built-in SQLite.
+- Added durable recovery summaries, client heartbeats, and Core lifecycle commands.
+- Added cross-platform Core daemon CI and regression tests.

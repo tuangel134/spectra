@@ -42,7 +42,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node scripts/run-tests.mjs",
     "start": "node dist/cli.js",
-    "desktop": "node dist/cli.js desktop",
+    "desktop": "node dist/cli.js desktop", "core": "node dist/cli.js core",
     "desktop:build": "cd desktop-native && cargo build --release",
     "eval": "node dist/cli.js eval",
     "bench": "node dist/cli.js bench",

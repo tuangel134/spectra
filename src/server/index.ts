@@ -12,6 +12,8 @@ import * as nodeFs from "node:fs"
 import * as nodePath from "node:path"
 
 import type { Runtime } from "../runtime.js"
+import type { CoreStateStore } from "../core/state-store.js"
+import { CORE_PROTOCOL_VERSION } from "../core/protocol.js"
 import { staticCatalog } from "../provider/catalog.js"
 import { fetchLiveModelsDetailed, normalizeOpenAIBaseURL } from "../provider/model-catalog.js"
 import { COMMANDS } from "../commands.js"
@@ -50,6 +52,14 @@ export interface ServerOptions {
   cors: string[]
   /** Disable auth token requirement (for tests / trusted environments). */
   noAuth?: boolean
+  /** Metadata and durable journal when hosted by the persistent Core daemon. */
+  core?: {
+    protocolVersion: number
+    instanceId: string
+    startedAt: number
+    state: CoreStateStore
+    onProjectChanged?: (projectRoot: string) => void
+  }
 }
 
 type Handler = (
@@ -171,7 +181,49 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       })
       const injected = isLoopback ? authToken : ""
       res.end(DESKTOP_HTML.replace("__SPECTRA_AUTH_TOKEN__", JSON.stringify(injected)))
-    }), compile("GET", "/health", (_req, res) => json(res, 200, { status: "ok", version: "0.1.0", token: loopbackToken })),
+    }), compile("GET", "/health", (_req, res) => json(res, 200, {
+      status: "ok",
+      version: "0.1.0",
+      protocolVersion: options.core?.protocolVersion ?? CORE_PROTOCOL_VERSION,
+      instanceId: options.core?.instanceId,
+      pid: process.pid,
+      projectRoot: rt.config.projectRoot,
+      stateBackend: options.core?.state.backend,
+      startedAt: options.core?.startedAt,
+      token: loopbackToken,
+      autorun: { running: rt.autorun.running, hasResumable: rt.autorun.hasResumable() },
+    })),
+    compile("GET", "/api/core/status", (_req, res) => {
+      const resumable = rt.autorun.hasResumable()
+      json(res, 200, {
+        managed: Boolean(options.core),
+        protocolVersion: options.core?.protocolVersion ?? CORE_PROTOCOL_VERSION,
+        instanceId: options.core?.instanceId ?? null,
+        pid: process.pid,
+        startedAt: options.core?.startedAt ?? null,
+        projectRoot: rt.config.projectRoot,
+        stateBackend: options.core?.state.backend ?? "session-json",
+        autorun: { running: rt.autorun.running, hasResumable: resumable },
+        recovery: options.core?.state.recoverySummary(resumable) ?? {
+          interrupted: resumable,
+          activeClients: 0,
+          resumableAutorun: resumable,
+        },
+      })
+    }),
+    compile("GET", "/api/core/events", (req, res) => {
+      if (!options.core) return json(res, 200, { events: [] })
+      const url = new URL(req.url ?? "/", `http://${options.hostname}`)
+      const limit = Number(url.searchParams.get("limit") ?? "100")
+      json(res, 200, { events: options.core.state.recent(limit) })
+    }),
+    compile("POST", "/api/core/client/heartbeat", async (req, res) => {
+      const body = await readBody(req)
+      const clientId = String(body["clientId"] ?? "").trim()
+      if (!clientId) return json(res, 400, { error: "clientId required" })
+      options.core?.state.heartbeatClient(clientId)
+      json(res, 200, { ok: true })
+    }),
 
     // ----- Command catalog (for the slash menu) -----
     compile("GET", "/api/commands", (_req, res) => json(res, 200, COMMANDS)),
@@ -439,7 +491,8 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       // Switch into the freshly created project (unless the autopilot is busy).
       if (!rt.autorun.running) {
         reloadRuntime(rt, { cwd: entry.path })
-        await connectIntegrations(rt)
+      await connectIntegrations(rt)
+      options.core?.onProjectChanged?.(rt.config.projectRoot)
       }
       rt.pushAudit("project", `Created project: ${entry.name}`, entry.path)
       json(res, 200, { ok: true, project: entry, current: rt.config.projectRoot })
@@ -458,8 +511,9 @@ export function createServer(rt: Runtime, options: ServerOptions) {
         return json(res, 409, { error: "Stop the Autopilot before switching projects." })
       }
       reloadRuntime(rt, { cwd: path })
-      new ProjectManager().add(path)
-      await connectIntegrations(rt)
+  new ProjectManager().add(path)
+  await connectIntegrations(rt)
+  options.core?.onProjectChanged?.(rt.config.projectRoot)
       rt.pushAudit("project", "Opened project", rt.config.projectRoot)
       json(res, 200, { ok: true, current: rt.config.projectRoot })
     }),
@@ -603,7 +657,8 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       if (rt.autorun.running) return json(res, 409, { error: "An autorun is already in progress." })
       try {
         const state = rt.autorun.start(goal)
-        rt.pushAudit("autorun", `Started full-stack run`, goal.slice(0, 120))
+  options.core?.state.record("run.started", { goal: goal.slice(0, 500) }, state.id)
+  rt.pushAudit("autorun", `Started full-stack run`, goal.slice(0, 120))
         json(res, 200, { ok: true, state })
       } catch (err) {
         json(res, 400, { error: (err as Error).message })
@@ -615,13 +670,16 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       const id = typeof body["id"] === "string" ? (body["id"] as string) : undefined
       const state = rt.autorun.resume(id)
       if (!state) return json(res, 404, { error: "No resumable run found." })
-      rt.pushAudit("autorun", `Resumed run ${state.id}`)
+  options.core?.state.record("run.resumed", {}, state.id)
+  rt.pushAudit("autorun", `Resumed run ${state.id}`)
       json(res, 200, { ok: true, state })
     }),
 
     compile("POST", "/api/autorun/stop", (_req, res) => {
-      rt.autorun.cancel()
-      rt.pushAudit("autorun", "Pause requested")
+      const activeRun = rt.autorun.status()
+  rt.autorun.cancel()
+  if (activeRun?.id) options.core?.state.record("run.paused", {}, activeRun.id)
+  rt.pushAudit("autorun", "Pause requested")
       json(res, 200, { ok: true })
     }),
 

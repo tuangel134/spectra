@@ -20,3 +20,6 @@ desktop-native/target/
 # VS Code extension build output / packages
 vscode-extension/out/
 *.vsix
+
+# Spectra Core durable local state
+.spectra/state/
