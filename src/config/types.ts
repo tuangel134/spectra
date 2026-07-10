@@ -2,7 +2,9 @@
  * Configuration type definitions for Spectra.
  */
 
-export type PermissionLevel = "allow" | "ask" | "deny"
+export type PermissionLevel = "allow" | "ask" | "deny";
+export type SecurityProfile = "legacy" | "safe" | "balanced" | "autonomous" | "unrestricted";
+export interface SecurityConfig { profile?: SecurityProfile }
 
 /**
  * A permission entry is either a flat level, or an object mapping
@@ -137,6 +139,7 @@ export interface SpectraConfig {
   autorun: AutorunConfigShape
   mcp: Record<string, McpServerConfigShape>
   routing: RoutingConfigShape
+  security?: SecurityConfig
   githubToken?: string
   autoupdate: boolean | "notify"
   /** Interactive auto-approval: when true, tool actions run without prompting. */
@@ -161,6 +164,7 @@ export type RawConfig = Partial<{
   autorun: AutorunConfigShape
   mcp: Record<string, McpServerConfigShape>
   routing: RoutingConfigShape
+  security: SecurityConfig
   githubToken: string
   autoupdate: boolean | "notify"
   autoApprove: boolean

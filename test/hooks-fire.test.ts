@@ -39,7 +39,7 @@ test("promptSubmit hook fires and its runCommand output is fed back", async () =
   const dir = mkdtempSync(join(tmpdir(), "spectra-hook-"))
   writeHook(dir, "greet", { name: "greet", version: "1.0.0", when: { type: "promptSubmit" }, then: { type: "runCommand", command: "echo HOOK_FIRED" } })
   try {
-    const rt = createRuntime({ cwd: dir }) // loads hooks from disk
+    const rt = createRuntime({ cwd: dir }); rt.trust.trustOnce() // loads hooks from disk
     rt.providers.upsertProvider("fake", { sdk: "openai-compatible", baseURL: `http://127.0.0.1:${port}/v1`, options: { apiKey: "x" } })
     rt.config.config.model = "fake/m"
     rt.config.config.spec.detect = "off"
@@ -57,7 +57,7 @@ test("fileEdited/postToolUse hooks fire when the agent writes a file", async () 
   const dir = mkdtempSync(join(tmpdir(), "spectra-hook2-"))
   writeHook(dir, "onsave", { name: "onsave", version: "1.0.0", when: { type: "fileCreated", patterns: ["*.txt"] }, then: { type: "runCommand", command: "echo SAVED_HOOK" } })
   try {
-    const rt = createRuntime({ cwd: dir })
+    const rt = createRuntime({ cwd: dir }); rt.trust.trustOnce()
     rt.providers.upsertProvider("fake", { sdk: "openai-compatible", baseURL: `http://127.0.0.1:${port}/v1`, options: { apiKey: "x" } })
     rt.config.config.model = "fake/m"
     rt.config.config.spec.detect = "off"

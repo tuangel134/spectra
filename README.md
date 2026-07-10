@@ -10,7 +10,7 @@ Planifica en *specs*, ejecuta tareas en paralelo y funciona con cualquier provee
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 ![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue)
-![Tests](https://img.shields.io/badge/tests-283%20passing-success)
+![Tests](https://img.shields.io/badge/tests-300%2B%20passing-success)
 
 <img src="assets/app.png" alt="Spectra en acción" width="820">
 
@@ -36,7 +36,7 @@ Además de programar, funciona como **asistente de terminal general**: diagnosti
 - **Hooks + Steering** — automatiza acciones ante eventos y añade reglas persistentes al proyecto.
 - **Sesiones con undo** — snapshots por turno, rebobinado y compactación automática de contexto.
 - **Autopilot** — modo de ejecución larga que entrega proyectos completos, verificados y sin esqueletos.
-- **283 tests** automatizados (unitarios + integración end-to-end), verdes en Linux, macOS y Windows en CI.
+- **300+ tests** automatizados (unitarios + integración end-to-end), verdes en Linux, macOS y Windows en CI.
 
 ## 📸 Capturas
 
@@ -302,7 +302,7 @@ spectra/
 │   ├── desktop/            # Launcher de la app nativa
 │   └── util/               # platform (cross-OS), logger, glob, ids
 ├── desktop-native/         # Ventana nativa en Rust (wry/tao)
-├── test/                   # 283 tests (node:test)
+├── test/                   # 300+ tests (node:test)
 └── spectra.example.jsonc   # Config de referencia
 ```
 
@@ -311,7 +311,7 @@ spectra/
 ```bash
 npm run build       # Compila a dist/
 npm run typecheck   # Type-check sin emitir
-npm test            # Ejecuta los 283 tests (multiplataforma)
+npm test            # Ejecuta los 300+ tests (multiplataforma)
 npm run dev -- ...  # Ejecuta desde TypeScript sin compilar
 npm run eval        # Scorecard de capacidades
 ```

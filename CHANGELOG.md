@@ -45,3 +45,12 @@
 - Desktop notifications on task completion.
 - Chat search (Ctrl+F).
 - Connection-lost banner with auto-recovery.
+
+## Desktop security foundation
+
+- Added a dedicated Spectra Desktop shell with onboarding, reconnect status, and interrupted-run recovery.
+- Added Safe, Balanced, Autonomous, Unrestricted, and Legacy security profiles.
+- Added fingerprinted Workspace Trust for project plugins, hooks, Claude settings, and MCP files.
+- Project hooks are asynchronous, bounded, shell-quoted, and trust-gated.
+- JavaScript plugins and MCP startup are blocked in restricted workspaces.
+- Added native Desktop CI on Linux, Windows, and macOS.

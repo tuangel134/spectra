@@ -5,15 +5,12 @@
  * lifecycle events (file changes, tool use, task execution) by running a shell
  * command or injecting a prompt for the agent.
  */
-
 import { readdirSync, readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
-import { spawnSync } from "node:child_process"
-
-import { matchAnyGlob } from "../util/glob.js"
-import { matchWildcard } from "../util/glob.js"
+import { spawn } from "node:child_process"
+import { matchAnyGlob, matchWildcard } from "../util/glob.js"
 import { logger } from "../util/logger.js"
-import { shellFor } from "../util/platform.js"
+import { detachForGroupKill, IS_WINDOWS, killTree, shellFor } from "../util/platform.js"
 
 export type HookEventType =
   | "fileEdited"
@@ -62,6 +59,13 @@ export interface HookOutcome {
   output: string
 }
 
+export interface HookRegistryOptions {
+  /** Runtime Workspace Trust gate. Defaults to true for API/test compatibility. */
+  canExecute?: () => boolean
+  commandTimeoutMs?: number
+  maxOutputBytes?: number
+}
+
 const TOOL_CATEGORIES: Record<string, string[]> = {
   read: ["read", "grep", "glob"],
   write: ["edit", "write", "apply_patch", "multiedit"],
@@ -70,12 +74,25 @@ const TOOL_CATEGORIES: Record<string, string[]> = {
   spec: ["spec"],
 }
 
+function quoteForShell(value: string): string {
+  if (!IS_WINDOWS) return `'${value.replace(/'/g, `'"'"'`)}'`
+  // cmd.exe: double quotes keep &, |, < and > inert. Escape percent expansion
+  // and embedded quotes so a filename cannot become a second command.
+  return `"${value.replace(/%/g, "%%").replace(/"/g, '""')}"`
+}
+
 export class HookRegistry {
   private readonly hooks: HookDefinition[] = []
   private readonly projectRoot: string
+  private readonly canExecute: () => boolean
+  private readonly commandTimeoutMs: number
+  private readonly maxOutputBytes: number
 
-  constructor(projectRoot: string) {
+  constructor(projectRoot: string, options: HookRegistryOptions = {}) {
     this.projectRoot = projectRoot
+    this.canExecute = options.canExecute ?? (() => true)
+    this.commandTimeoutMs = options.commandTimeoutMs ?? 60_000
+    this.maxOutputBytes = options.maxOutputBytes ?? 1024 * 1024
     this.load(projectRoot)
   }
 
@@ -86,10 +103,7 @@ export class HookRegistry {
   }
 
   private load(projectRoot: string): void {
-    const dirs = [
-      join(projectRoot, ".spectra", "hooks"),
-      join(projectRoot, ".opencode", "hooks"),
-    ]
+    const dirs = [join(projectRoot, ".spectra", "hooks"), join(projectRoot, ".opencode", "hooks")]
     for (const dir of dirs) {
       if (!existsSync(dir)) continue
       for (const file of readdirSync(dir)) {
@@ -126,24 +140,18 @@ export class HookRegistry {
   match(event: HookEvent): HookDefinition[] {
     return this.hooks.filter((hook) => {
       if (hook.when.type !== event.type) return false
-
       if (
-        (event.type === "fileEdited" ||
-          event.type === "fileCreated" ||
-          event.type === "fileDeleted") &&
+        (event.type === "fileEdited" || event.type === "fileCreated" || event.type === "fileDeleted") &&
         hook.when.patterns
       ) {
-        return event.filePath ? matchAnyGlob(basename(event.filePath), hook.when.patterns) ||
-          matchAnyGlob(event.filePath, hook.when.patterns) : false
+        return event.filePath
+          ? matchAnyGlob(basename(event.filePath), hook.when.patterns) ||
+              matchAnyGlob(event.filePath, hook.when.patterns)
+          : false
       }
-
-      if (
-        (event.type === "preToolUse" || event.type === "postToolUse") &&
-        hook.when.toolTypes
-      ) {
+      if ((event.type === "preToolUse" || event.type === "postToolUse") && hook.when.toolTypes) {
         return hook.when.toolTypes.some((tt) => this.matchToolType(event.toolName ?? "", tt))
       }
-
       return true
     })
   }
@@ -151,13 +159,24 @@ export class HookRegistry {
   /** Run all hooks matching an event, returning their outcomes. */
   async fire(event: HookEvent, projectRoot: string): Promise<HookOutcome[]> {
     const outcomes: HookOutcome[] = []
-    for (const hook of this.match(event)) {
-      outcomes.push(this.execute(hook, event, projectRoot))
-    }
+    for (const hook of this.match(event)) outcomes.push(await this.execute(hook, event, projectRoot))
     return outcomes
   }
 
-  private execute(hook: HookDefinition, event: HookEvent, projectRoot: string): HookOutcome {
+  private async execute(
+    hook: HookDefinition,
+    event: HookEvent,
+    projectRoot: string,
+  ): Promise<HookOutcome> {
+    if (!this.canExecute()) {
+      return {
+        hook: hook.name,
+        action: hook.then.type,
+        success: false,
+        output: "Blocked by Workspace Trust. Trust this workspace before running project hooks.",
+      }
+    }
+
     if (hook.then.type === "askAgent") {
       return {
         hook: hook.name,
@@ -167,33 +186,66 @@ export class HookRegistry {
       }
     }
 
-    // runCommand
     const command = this.interpolate(hook.then.command ?? "", event)
     const { file, args: shellArgs } = shellFor(command)
-    const result = spawnSync(file, shellArgs, {
-      cwd: projectRoot,
-      encoding: "utf-8",
-      timeout: 60_000,
-      env: {
-        ...process.env,
-        SPECTRA_EVENT_TYPE: event.type,
-        SPECTRA_FILE_PATH: event.filePath ?? "",
-        SPECTRA_TOOL_NAME: event.toolName ?? "",
-      },
-    })
 
-    return {
-      hook: hook.name,
-      action: "runCommand",
-      success: result.status === 0,
-      output: ((result.stdout ?? "") + (result.stderr ?? "")).trim(),
-    }
+    return await new Promise<HookOutcome>((resolve) => {
+      let output = ""
+      let finished = false
+      const child = spawn(file, shellArgs, {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          SPECTRA_EVENT_TYPE: event.type,
+          SPECTRA_FILE_PATH: event.filePath ?? "",
+          SPECTRA_TOOL_NAME: event.toolName ?? "",
+          SPECTRA_TASK_ID: String(event.taskId ?? ""),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        ...detachForGroupKill(),
+      })
+
+      const append = (chunk: Buffer): void => {
+        if (Buffer.byteLength(output) >= this.maxOutputBytes) return
+        output += chunk.toString("utf-8")
+        if (Buffer.byteLength(output) > this.maxOutputBytes) {
+          output = output.slice(0, this.maxOutputBytes) + "\n[output truncated]"
+        }
+      }
+      child.stdout?.on("data", append)
+      child.stderr?.on("data", append)
+
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const done = (success: boolean, suffix = ""): void => {
+        if (finished) return
+        finished = true
+        if (timer) clearTimeout(timer)
+        resolve({
+          hook: hook.name,
+          action: "runCommand",
+          success,
+          output: (output + suffix).trim(),
+        })
+      }
+
+      timer = setTimeout(() => {
+        killTree(child)
+        done(false, `\nHook timed out after ${this.commandTimeoutMs}ms.`)
+      }, this.commandTimeoutMs)
+
+      child.once("error", (error) => done(false, `\n${error.message}`))
+      child.once("close", (code) => done(code === 0))
+    })
   }
 
   private interpolate(command: string, event: HookEvent): string {
+    const file = quoteForShell(event.filePath ?? "")
+    const tool = quoteForShell(event.toolName ?? "")
     return command
-      .replace(/\$FILE/g, event.filePath ?? "")
-      .replace(/\$TOOL/g, event.toolName ?? "")
+      .replace(/(["'])\$FILE\1/g, file)
+      .replace(/\$FILE/g, file)
+      .replace(/(["'])\$TOOL\1/g, tool)
+      .replace(/\$TOOL/g, tool)
       .replace(/\$TASK_ID/g, String(event.taskId ?? ""))
   }
 
@@ -210,6 +262,7 @@ export class HookRegistry {
 }
 
 function basename(path: string): string {
-  const idx = path.lastIndexOf("/")
-  return idx === -1 ? path : path.slice(idx + 1)
+  const normalized = path.replace(/\\/g, "/")
+  const idx = normalized.lastIndexOf("/")
+  return idx === -1 ? normalized : normalized.slice(idx + 1)
 }

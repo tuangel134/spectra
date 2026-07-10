@@ -15,7 +15,8 @@ import { join, dirname } from "node:path"
 
 import { parseJsonc } from "./loader.js"
 import { configDir } from "../util/platform.js"
-import type { RawConfig } from "./types.js"
+import type { RawConfig, SecurityProfile } from "./types.js";
+import { SECURITY_PROFILES } from "../security/profiles.js"
 
 /** Absolute path to the global config file. */
 export function globalConfigPath(): string {
@@ -219,6 +220,20 @@ export function saveRouting(patch: {
         : {}),
       ...(patch.tiers ? { tiers: { ...current.tiers, ...patch.tiers } } : {}),
     }
+  })
+  return path
+}
+
+/** Persist a complete security profile to the PROJECT config. */
+export function saveSecurityProfile(profile: SecurityProfile, projectRoot: string): string {
+  const path = projectConfigPath(projectRoot)
+  updateConfig(path, (config) => {
+    config.security = { ...config.security, profile }
+    if (profile === "legacy") return
+    const preset = SECURITY_PROFILES[profile]
+    config.permission = structuredClone(preset.permission)
+    config.autoApprove = preset.autoApprove
+    if (preset.autorun) config.autorun = { ...config.autorun, ...preset.autorun }
   })
   return path
 }

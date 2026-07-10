@@ -15,8 +15,9 @@ import type { Runtime } from "../runtime.js"
 import { staticCatalog } from "../provider/catalog.js"
 import { fetchLiveModelsDetailed, normalizeOpenAIBaseURL } from "../provider/model-catalog.js"
 import { COMMANDS } from "../commands.js"
-import { saveProviderKey, saveModel, savePermission, removeProvider, saveCustomProvider, saveCompaction, saveHeadroom, saveRouting, saveSpecDetect, saveAutorun, saveAutoApprove } from "../config/writer.js"
-import { WEB_HTML } from "../web/html.js"
+import { saveProviderKey, saveModel, savePermission, removeProvider, saveCustomProvider, saveCompaction, saveHeadroom, saveRouting, saveSpecDetect, saveAutorun, saveAutoApprove, saveSecurityProfile } from "../config/writer.js"
+import { WEB_HTML } from "../web/html.js";
+import { DESKTOP_HTML } from "../web/desktop.js"
 import type { LoopHandlers } from "../session/loop.js"
 import { summarizeCost } from "../util/cost.js"
 import { ProjectManager } from "../projects/index.js"
@@ -24,7 +25,8 @@ import { pushToGitHub, getUsername, generateReadmePrompt } from "../github/index
 import { detectSpecIntent } from "../spec/detect.js"
 import type { Clarification } from "../spec/clarify.js"
 import { runSpecWorkflow, generateClarifyingQuestions, autoAnswerQuestions } from "../workflow/spec-workflow.js"
-import { reloadRuntime, connectIntegrations } from "../runtime.js"
+import { reloadRuntime, connectIntegrations } from "../runtime.js";
+import { applySecurityProfile, isSecurityProfile, listSecurityProfiles } from "../security/profiles.js"
 import {
   detectVerifyCommands,
   runVerification,
@@ -109,7 +111,7 @@ export function createServer(rt: Runtime, options: ServerOptions) {
   // Auth: generate a per-launch token. Clients must send it in the
   // `Authorization: Bearer <token>` header or `?token=<token>` query param on
   // every API call. The web UI injects the token into its JS at page load.
-  // Endpoints exempt from auth: / (web page), /health.
+  // Endpoints exempt from auth: / (web page), /desktop (native shell), /health.
   const authToken = options.noAuth ? "" : randomBytes(16).toString("hex")
 
   // The /health endpoint is unauthenticated (used for readiness probes), so it
@@ -160,10 +162,16 @@ export function createServer(rt: Runtime, options: ServerOptions) {
         "const jget=",
         `const __TOKEN=${JSON.stringify(injected)}||new URLSearchParams(location.search).get("token")||"";\nconst jget=`,
       )
-      res.end(html)
-    }),
-
-    compile("GET", "/health", (_req, res) => json(res, 200, { status: "ok", version: "0.1.0", token: loopbackToken })),
+      res.end(html) }), compile("GET", "/desktop", (_req, res) => {
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": "default-src 'self'; frame-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'",
+        "referrer-policy": "no-referrer",
+        "x-content-type-options": "nosniff",
+      })
+      const injected = isLoopback ? authToken : ""
+      res.end(DESKTOP_HTML.replace("__SPECTRA_AUTH_TOKEN__", JSON.stringify(injected)))
+    }), compile("GET", "/health", (_req, res) => json(res, 200, { status: "ok", version: "0.1.0", token: loopbackToken })),
 
     // ----- Command catalog (for the slash menu) -----
     compile("GET", "/api/commands", (_req, res) => json(res, 200, COMMANDS)),
@@ -309,11 +317,60 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       json(res, 200, { memory: out })
     }),
 
-    compile("GET", "/api/plugins", (_req, res) => {
-      json(res, 200, { plugins: rt.plugins.list() })
-    }),
-
-    compile("GET", "/api/cost", (_req, res) => {
+    compile("GET", "/api/plugins", (_req, res) => { json(res, 200, { plugins: rt.plugins.list() }) }),
+  compile("GET", "/api/security/status", (_req, res) => {
+    const trust = rt.trust.status()
+    json(res, 200, {
+      profile: rt.config.config.security?.profile ?? "legacy",
+      profiles: listSecurityProfiles(),
+      trust,
+      integrationsBlocked: !trust.trusted && trust.findings.length > 0,
+      autoApprove: rt.config.config.autoApprove,
+      permissions: rt.config.config.permission,
+    })
+  }),
+  compile("POST", "/api/security/profile", async (req, res) => {
+    const body = await readBody(req)
+    const profile = body["profile"]
+    if (!isSecurityProfile(profile)) return json(res, 400, { error: "invalid security profile" })
+    if (rt.autorun.running) return json(res, 409, { error: "Pause Autopilot before changing the security profile." })
+    const cwd = rt.config.projectRoot
+    saveSecurityProfile(profile, cwd)
+    applySecurityProfile(rt.config.config, profile)
+    // Recreate integration registries so moving from Legacy to a modern profile
+    // cannot leave already-loaded plugins or MCP tools active.
+    reloadRuntime(rt, { cwd })
+    await connectIntegrations(rt)
+    rt.pushAudit("security", `Security profile → ${profile}`)
+    json(res, 200, { ok: true, profile, autoApprove: rt.config.config.autoApprove, permissions: rt.config.config.permission })
+  }),
+  compile("POST", "/api/security/trust", async (req, res) => {
+    const body = await readBody(req)
+    if (rt.autorun.running) return json(res, 409, { error: "Pause Autopilot before changing Workspace Trust." })
+    const action = String(body["action"] ?? "")
+    const cwd = rt.config.projectRoot
+    let auditAction: string
+    if (action === "once") {
+      rt.trust.trustOnce()
+      auditAction = "Workspace trusted once"
+    } else if (action === "permanent") {
+      rt.trust.trustPermanently()
+      auditAction = "Workspace trusted permanently"
+    } else if (action === "restrict") {
+      rt.trust.restrict()
+      auditAction = "Workspace returned to restricted mode"
+    } else {
+      return json(res, 400, { error: "action must be once | permanent | restrict" })
+    }
+    // Rebuild registries so a trust transition cannot leave stale plugin or
+    // MCP tools registered in the active runtime. Session-only trust survives
+    // this reload through the process-local trust cache.
+    reloadRuntime(rt, { cwd })
+    await connectIntegrations(rt)
+    rt.pushAudit("security", auditAction)
+    json(res, 200, { ok: true, trust: rt.trust.status() })
+  }),
+  compile("GET", "/api/cost", (_req, res) => {
       const summary = summarizeCost(rt.sessions.list())
       json(res, 200, summary)
     }),
@@ -575,8 +632,7 @@ export function createServer(rt: Runtime, options: ServerOptions) {
         headroom: rt.config.config.headroom,
         permission: rt.config.config.permission,
         spec: rt.config.config.spec,
-        autoApprove: rt.config.config.autoApprove,
-        toolNames: ["read", "edit", "bash", "grep", "glob", "webfetch"],
+        autoApprove: rt.config.config.autoApprove, security: rt.config.config.security, trust: rt.trust.status(), toolNames: ["read", "edit", "bash", "grep", "glob", "webfetch"],
         permissionLevels: ["allow", "ask", "deny"],
       })
     }),
@@ -1158,7 +1214,7 @@ export function createServer(rt: Runtime, options: ServerOptions) {
     const pathname = url.pathname
 
     // Exempt pages served to the browser (web UI shell, health check).
-    const exempt = pathname === "/" || pathname === "/health"
+    const exempt = pathname === "/" || pathname === "/desktop" || pathname === "/health"
     if (!exempt && !checkAuth(req, url)) {
       json(res, 401, { error: "Unauthorized. Supply Authorization: Bearer <token>." })
       return

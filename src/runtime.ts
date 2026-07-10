@@ -23,7 +23,8 @@ import { PluginManager } from "./plugin/index.js"
 import { ModelRouter, type RoutingConfig } from "./routing/index.js"
 import { MemoryStore, createMemoryTool } from "./memory/index.js"
 import { loadSteering } from "./steering/index.js"
-import { loadClaudeCompatibility } from "./compat/claude.js"
+import { loadClaudeCompatibility } from "./compat/claude.js";
+import { WorkspaceTrustManager } from "./security/trust.js"
 
 export interface AuditEntry {
   id: string
@@ -50,6 +51,7 @@ export interface Runtime {
   plugins: PluginManager
   router: ModelRouter
   memory: MemoryStore
+  trust: WorkspaceTrustManager
   audit: AuditEntry[]
   pushAudit(category: string, action: string, detail?: string): void
 }
@@ -65,12 +67,13 @@ export function createRuntime(options: { cwd?: string; configPath?: string } = {
   const tools = new ToolRegistry()
   const sessions = new SessionManager()
   sessions.enablePersistence(projectRoot)
-  const hooks = new HookRegistry(projectRoot)
+  const trust = new WorkspaceTrustManager(projectRoot)
+  const hooks = new HookRegistry(projectRoot, { canExecute: () => trust.isTrusted() })
   const headroom = new Headroom(config.headroom, projectRoot)
   const skills = new SkillRegistry(projectRoot)
   const mcp = new McpManager(projectRoot, config.mcp)
   const lsp = new LspManager(projectRoot)
-  const plugins = new PluginManager(projectRoot, tools)
+  const plugins = new PluginManager(projectRoot, tools, undefined, () => trust.isTrusted())
   const router = new ModelRouter(
     () => config.routing as RoutingConfig,
     () => config.model,
@@ -138,10 +141,7 @@ export function createRuntime(options: { cwd?: string; configPath?: string } = {
     skills,
     lsp,
     plugins,
-    router,
-    memory,
-    audit,
-    pushAudit,
+    router, memory, trust, audit, pushAudit,
   }
   runtime.autorun = new AutorunManager(runtime, config.autorun)
   // The task tool delegates to subagents via the loop, so it needs the runtime.
@@ -187,6 +187,7 @@ export function reloadRuntime(rt: Runtime, options: { cwd?: string; configPath?:
   rt.plugins = fresh.plugins
   rt.router = fresh.router
   rt.memory = fresh.memory
+  rt.trust = fresh.trust
   rt.audit = fresh.audit
   rt.pushAudit = fresh.pushAudit
 }
@@ -200,28 +201,47 @@ export async function connectIntegrations(
   rt: Runtime,
   report?: (msg: string) => void,
 ): Promise<void> {
-  try {
-    await rt.mcp.connectAll(report)
-    const mcpTools = rt.mcp.toTools()
-    for (const tool of mcpTools) rt.tools.register(tool)
-    if (mcpTools.length > 0) rt.pushAudit("mcp", `Connected ${mcpTools.length} MCP tool(s)`)
-  } catch (err) {
-    report?.(`MCP init error: ${(err as Error).message}`)
+  const trust = rt.trust.status()
+  if (!trust.trusted) {
+    const blockedPlugins = await rt.plugins.loadAll()
+    const detail = `Workspace Trust blocked MCP, hooks, and ${blockedPlugins.length} plugin(s).`
+    report?.(detail)
+    rt.pushAudit("security", "Workspace integrations blocked", trust.state)
+  } else {
+    try {
+      await rt.mcp.connectAll(report)
+      const mcpTools = rt.mcp.toTools()
+      for (const tool of mcpTools) {
+        rt.tools.register({
+          ...tool,
+          execute: async (args, ctx) => {
+            if (!rt.trust.isTrusted()) {
+              return { success: false, output: "Blocked by Workspace Trust. Re-trust the workspace before using MCP tools." }
+            }
+            return await tool.execute(args, ctx)
+          },
+        })
+      }
+      if (mcpTools.length > 0) rt.pushAudit("mcp", `Connected ${mcpTools.length} MCP tool(s)`)
+    } catch (err) {
+      report?.(`MCP init error: ${(err as Error).message}`)
+    }
+
+    try {
+      const plugins = await rt.plugins.loadAll()
+      const ok = plugins.filter((p) => !p.error)
+      if (ok.length > 0) rt.pushAudit("plugin", `Loaded ${ok.length} plugin(s)`)
+    } catch (err) {
+      report?.(`Plugin init error: ${(err as Error).message}`)
+    }
   }
-  try {
-    const plugins = await rt.plugins.loadAll()
-    const ok = plugins.filter((p) => !p.error)
-    if (ok.length > 0) rt.pushAudit("plugin", `Loaded ${ok.length} plugin(s)`)
-  } catch (err) {
-    report?.(`Plugin init error: ${(err as Error).message}`)
-  }
-  // Refresh the free-model list from OpenCode's live catalog (best-effort,
-  // cached for a day). Keeps the free tier accurate without a Spectra update.
+
+  // Refresh the free-model list independently of workspace trust.
   try {
     const { refreshFreeModels } = await import("./provider/free-models.js")
     const models = await refreshFreeModels()
     report?.(`Free models: ${models.length} available`)
   } catch {
-    /* best-effort — falls back to cache/bundled */
+    // Best effort — falls back to cache/bundled models.
   }
 }

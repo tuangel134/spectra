@@ -1,37 +1,19 @@
 /**
  * Plugin system.
  *
- * A plugin is a `.js`/`.mjs` module in `.spectra/plugins/` that default-exports
- * a function receiving a typed API and registering tools (and, in future,
- * providers/hooks). This is how users extend Spectra without forking it — the
- * same extension model OpenCode offers.
- *
- * Example `.spectra/plugins/hello.mjs`:
- *
- *   export default function ({ registerTool, log }) {
- *     registerTool({
- *       name: "hello",
- *       description: "Say hello",
- *       category: "meta",
- *       parameters: { type: "object", properties: {}, additionalProperties: false },
- *       async execute() { return { success: true, output: "hello from a plugin" } },
- *     })
- *   }
+ * Project plugins are executable JavaScript and therefore participate in
+ * Workspace Trust. The manager still discovers blocked plugins so Desktop can
+ * explain what is present without importing untrusted code.
  */
-
 import { readdirSync, existsSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-
 import type { Tool } from "../tool/types.js"
 import type { ToolRegistry } from "../tool/registry.js"
 
 export interface PluginApi {
-  /** Register a tool the agent can call. */
   registerTool(tool: Tool): void
-  /** Absolute path to the project root. */
   projectRoot: string
-  /** Structured logger for plugin output. */
   log(message: string): void
 }
 
@@ -40,6 +22,7 @@ export interface LoadedPlugin {
   path: string
   tools: string[]
   error?: string
+  blocked?: boolean
 }
 
 export type PluginModule = (api: PluginApi) => void | Promise<void>
@@ -52,20 +35,24 @@ export class PluginManager {
     private readonly projectRoot: string,
     private readonly tools: ToolRegistry,
     private readonly logger: (msg: string) => void = () => {},
+    private readonly canLoad: () => boolean = () => true,
   ) {
     this.dir = join(projectRoot, ".spectra", "plugins")
   }
 
-  /** Discover and load every plugin module. Best-effort and isolated. */
+  /** Discover and load every plugin module. Best-effort and trust-gated. */
   async loadAll(): Promise<LoadedPlugin[]> {
+    this.loaded.length = 0
     if (!existsSync(this.dir)) return this.loaded
+
     let entries: string[]
     try {
-      entries = readdirSync(this.dir)
+      entries = readdirSync(this.dir).sort()
     } catch {
       return this.loaded
     }
 
+    const candidates: Array<{ name: string; full: string }> = []
     for (const entry of entries) {
       if (!/\.(mjs|js|cjs)$/.test(entry)) continue
       const full = join(this.dir, entry)
@@ -74,8 +61,23 @@ export class PluginManager {
       } catch {
         continue
       }
-      await this.loadOne(entry, full)
+      candidates.push({ name: entry, full })
     }
+
+    if (!this.canLoad()) {
+      for (const candidate of candidates) {
+        this.loaded.push({
+          name: candidate.name,
+          path: candidate.full,
+          tools: [],
+          blocked: true,
+          error: "Blocked by Workspace Trust",
+        })
+      }
+      return this.loaded
+    }
+
+    for (const candidate of candidates) await this.loadOne(candidate.name, candidate.full)
     return this.loaded
   }
 
@@ -88,31 +90,49 @@ export class PluginManager {
         if (!tool || typeof tool.name !== "string" || typeof tool.execute !== "function") {
           throw new Error("registerTool requires { name, execute }")
         }
-        this.tools.register(tool)
+        const guarded: Tool = {
+          ...tool,
+          execute: async (args, ctx) => {
+            if (!this.canLoad()) {
+              return {
+                success: false,
+                output: "Blocked by Workspace Trust. Re-trust the workspace before using plugin tools.",
+              }
+            }
+            return await tool.execute(args, ctx)
+          },
+        }
+        this.tools.register(guarded)
         registered.push(tool.name)
       },
     }
+
     try {
       const mod = (await import(pathToFileURL(full).href)) as { default?: PluginModule }
       const fn = mod.default
       if (typeof fn !== "function") throw new Error("plugin must default-export a function")
-      // Bound the init call so a plugin that never resolves can't stall startup.
-      // Clear the timer on completion so it never keeps the event loop alive.
+
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         await Promise.race([
           Promise.resolve(fn(api)),
-          new Promise<never>((_, reject) => {
+          new Promise<never>((_resolve, reject) => {
             timer = setTimeout(() => reject(new Error("plugin init timed out after 10s")), 10_000)
           }),
         ])
       } finally {
         if (timer) clearTimeout(timer)
       }
+
       this.loaded.push({ name, path: full, tools: registered })
       this.logger(`Loaded plugin "${name}" (+${registered.length} tools)`)
     } catch (err) {
-      this.loaded.push({ name, path: full, tools: registered, error: (err as Error).message })
+      this.loaded.push({
+        name,
+        path: full,
+        tools: registered,
+        error: (err as Error).message,
+      })
       this.logger(`Plugin "${name}" failed: ${(err as Error).message}`)
     }
   }

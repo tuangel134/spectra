@@ -180,7 +180,7 @@ export async function launchDesktop(rt: Runtime, projectRoot: string): Promise<v
   const port = await findFreePort(preferred)
   const server = createServer(rt, { port, hostname: host, cors: [`http://${host}:${port}`] })
   await server.listen()
-  const url = `http://${host}:${port}`
+  const url = `http://${host}:${port}/desktop`
 
   let closed = false
   const shutdown = async (): Promise<void> => {
@@ -202,7 +202,7 @@ export async function launchDesktop(rt: Runtime, projectRoot: string): Promise<v
   const native = findNativeBinary(here) ?? (await downloadNativeBinary(here, stdoutWrite))
   if (native) {
     stdoutWrite(`${BRAND} ${color.gray("launching native desktop…")}\n`)
-    await runWindow(native, [], { SPECTRA_URL: url, SPECTRA_CWD: projectRoot })
+    await runWindow(native, [], { SPECTRA_URL: url, SPECTRA_CWD: projectRoot, SPECTRA_TITLE: `Spectra — ${projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? "Workspace"}` })
     await shutdown()
     return
   }
