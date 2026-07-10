@@ -1,357 +1,165 @@
-<div align="center">
-
 # ⚡ Spectra
 
-**El agente de programación por IA, guiado por especificaciones, para tu terminal.**
+**Agent-first IDE y agente de programación por IA guiado por especificaciones.**
 
-Planifica en *specs*, ejecuta tareas en paralelo y funciona con cualquier proveedor LLM — todo desde una TUI a pantalla completa, una app de escritorio nativa o el navegador.
+Spectra combina una TUI potente, un IDE de escritorio, un Core persistente, ejecución multiagente aislada y compatibilidad con modelos cloud o locales. Puede analizar proyectos, diseñar soluciones, editar código, ejecutar comandos, validar resultados y recuperar el trabajo después de un cierre inesperado.
 
-[![CI](https://github.com/tuangel134/spectra/actions/workflows/ci.yml/badge.svg)](https://github.com/tuangel134/spectra/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
-![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue)
-![Tests](https://img.shields.io/badge/tests-300%2B%20passing-success)
+[![Version](https://img.shields.io/badge/version-1.0.0-7c5cff)](https://github.com/tuangel134/spectra/releases/tag/v1.0.0)
+[![Production CI](https://github.com/tuangel134/spectra/actions/workflows/production-ci.yml/badge.svg)](https://github.com/tuangel134/spectra/actions/workflows/production-ci.yml)
+[![CodeQL](https://github.com/tuangel134/spectra/actions/workflows/codeql.yml/badge.svg)](https://github.com/tuangel134/spectra/actions/workflows/codeql.yml)
+[![Tests](https://img.shields.io/badge/tests-393%20passing-success)](test)
+[![Node](https://img.shields.io/badge/Node.js-%3E%3D20-brightgreen)](package.json)
+[![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
-<img src="assets/app.png" alt="Spectra en acción" width="820">
+## Spectra 1.0
 
-</div>
+La versión 1.0 integra seis capas de producto:
 
----
+1. **Seguridad de escritorio:** perfiles Safe, Balanced, Autonomous y Unrestricted, Workspace Trust y controles contra acciones destructivas.
+2. **Core persistente:** daemon por proyecto, estado durable, reconexión automática y recuperación de sesiones.
+3. **Desktop IDE:** explorador, pestañas, editor, terminal, Git, diffs, problemas LSP, specs visuales y chat del agente.
+4. **Multiagentes aislados:** ramas y worktrees independientes, locks de archivos, revisión de alcance, integración y rollback.
+5. **Adaptación al usuario:** onboarding, niveles de experiencia, accesibilidad, idiomas, presupuestos, Model Lab y detección de modelos locales.
+6. **Producción:** secretos protegidos, actualizaciones firmadas, crash recovery, E2E, estrés, presupuestos de rendimiento, SBOM y paquetes multiplataforma.
 
-## ✨ ¿Qué es Spectra?
+## Capacidades principales
 
-Spectra es un agente de IA que **escribe código de verdad** y trabaja de forma autónoma para completar tareas: lee antes de escribir, hace cambios enfocados, ejecuta build y tests, y nunca deja stubs ni placeholders. Cuando el trabajo es complejo, piensa en **especificaciones** — requirements, design y tasks — y ejecuta las tareas independientes en paralelo.
-
-Además de programar, funciona como **asistente de terminal general**: diagnostica y arregla problemas del sistema (audio, red, drivers, servicios, paquetes) con permisos que piden aprobación antes de cualquier acción privilegiada o destructiva.
-
-## 🎯 Características
-
-- **Spec-driven** — genera `requirements.md`, `design.md` y `tasks.md`, construye un grafo de dependencias y ejecuta las tareas en *waves* paralelas.
-- **Multiplataforma** — Linux, macOS y Windows 10/11, con shell y rutas nativas de cada SO.
-- **Multi-proveedor** — Anthropic, OpenAI, Google Gemini, Ollama (local, sin clave) o cualquier endpoint compatible con OpenAI vía base URL. Arranca gratis, sin API key.
-- **Tres interfaces, un motor** — TUI a pantalla completa, app de escritorio nativa (WebView del SO, sin Chromium empaquetado) y UI web.
-- **Herramientas reales** — `read`, `write`, `edit`, `bash`, `grep`, `glob`, `webfetch`, git, diagnósticos LSP, navegador headless y más.
-- **Permisos granulares** — `allow` / `ask` / `deny` por patrón de comando; las acciones privilegiadas (sudo/UAC, borrados, servicios) siempre piden confirmación.
-- **Sub-agentes** — delega investigación o ediciones acotadas a agentes aislados (`explore`, `review`) sin inflar el contexto principal.
-- **Hooks + Steering** — automatiza acciones ante eventos y añade reglas persistentes al proyecto.
-- **Sesiones con undo** — snapshots por turno, rebobinado y compactación automática de contexto.
-- **Autopilot** — modo de ejecución larga que entrega proyectos completos, verificados y sin esqueletos.
-- **300+ tests** automatizados (unitarios + integración end-to-end), verdes en Linux, macOS y Windows en CI.
-
-## 📸 Capturas
-
-<div align="center">
-
-| Paleta de comandos (Ctrl+K) | Selector de modelos |
+| Área | Capacidades |
 |---|---|
-| <img src="assets/palette.png" width="400"> | <img src="assets/models.png" width="400"> |
+| Agente | Chat, planificación, edición, depuración, refactor, revisión, operaciones del sistema y ejecución prolongada |
+| Specs | `requirements.md`, `design.md`, `tasks.md`, dependencias y waves paralelas |
+| IDE | Explorador, editor con pestañas, terminal, Git, diffs, LSP, Problems, logs y panel visual de specs |
+| Multiagente | Worktrees aislados, file locks, revisión de alcance, cherry-pick seguro y rollback |
+| Modelos | OpenAI, Anthropic, Gemini, OpenRouter, Groq, Cerebras, Mistral, DeepSeek, xAI, Ollama y endpoints OpenAI-compatible |
+| Compatibilidad | Skills, comandos, agentes, plugins y MCP de Spectra y Claude Code |
+| Seguridad | Workspace Trust, perfiles, permisos por herramienta, secretos en keychain o fallback AES-256-GCM |
+| Recuperación | Core persistente, journal, checkpoints, sesiones reanudables y detección de cierres inesperados |
 
-| Configuración | Uso y costos |
-|---|---|
-| <img src="assets/config.png" width="400"> | <img src="assets/usage.png" width="400"> |
+## Requisitos
 
-<img src="assets/shortcuts.png" alt="Atajos de teclado" width="640">
+- Linux, macOS o Windows 10/11.
+- Node.js 20 o superior para la instalación desde código.
+- Git.
+- `ripgrep` recomendado.
+- Rust solo es necesario para compilar localmente la ventana nativa.
 
-</div>
+## Instalación
 
-## 📦 Requisitos
-
-- **Node.js >= 20**
-- Funciona en **Linux, macOS y Windows 10/11**
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) recomendado para `grep`/`glob` (hay fallback si no está)
-- En Windows los comandos de shell se ejecutan con `cmd.exe`; [Git para Windows](https://git-scm.com/download/win) habilita las herramientas `git`
-
-## 🚀 Instalación
-
-### Un solo comando
-
-**Linux (cualquier distro) y macOS:**
+### Linux y macOS
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tuangel134/spectra/main/install.sh | bash
 ```
 
-**Windows 10/11 (PowerShell):**
+El instalador valida la nueva versión antes de reemplazar la instalación anterior y deja Spectra en:
+
+```text
+~/.local/share/spectra
+~/.local/bin/spectra
+```
+
+### CachyOS / Arch Linux con fish
+
+```fish
+sudo pacman -S --needed git nodejs npm ripgrep
+curl -fsSL https://raw.githubusercontent.com/tuangel134/spectra/main/install.sh | bash
+fish_add_path ~/.local/bin
+spectra doctor
+```
+
+Para compilar la ventana nativa localmente:
+
+```fish
+cd ~/.local/share/spectra
+npm run desktop:build
+spectra desktop
+```
+
+Si ya compilaste Desktop durante el desarrollo, normalmente las dependencias WebKitGTK y Rust ya están instaladas.
+
+### Bash o Zsh
+
+Cuando `~/.local/bin` todavía no esté en el `PATH`:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+En Zsh cambia `.bashrc` por `.zshrc`.
+
+### Windows
+
+Abre PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/tuangel134/spectra/main/install.ps1 | iex
+spectra doctor
+spectra desktop
 ```
 
-El instalador clona/actualiza Spectra, lo compila y deja el comando `spectra` en tu PATH. Solo necesitas **git** y **Node.js >= 20** (te avisa si falta alguno).
+### Instaladores del release
 
-### Manual (desde el código)
+El workflow de release genera los siguientes formatos cuando termina:
+
+- Linux: AppImage, DEB y paquete Pacman para Arch/CachyOS.
+- Windows: MSI/WiX y NSIS.
+- macOS: aplicación y DMG para Apple Silicon e Intel.
+
+Los artefactos se publican en [GitHub Releases](https://github.com/tuangel134/spectra/releases/tag/v1.0.0) junto con checksums, manifiesto firmado, SBOM y firmas Sigstore.
+
+## Primer inicio
 
 ```bash
-git clone https://github.com/tuangel134/spectra.git
-cd spectra
-npm install     # compila automáticamente (script prepare)
-npm link        # deja `spectra` disponible globalmente
+spectra doctor
+spectra desktop
 ```
 
-### App de escritorio
+Desktop abre el onboarding para seleccionar idioma, experiencia, autonomía, privacidad, estrategia de modelos, accesibilidad y límites de costo. Spectra puede iniciar con un modelo gratuito; los proveedores adicionales se configuran desde **Model Lab** o con `/connect`.
 
-`spectra desktop` funciona sin instalar nada extra: abre una ventana nativa si hay binario, o cae a tu navegador en modo app. Para la **ventana nativa ligera** (WebView del SO, ~unos MB) descarga el binario de tu plataforma desde la [página de Releases](https://github.com/tuangel134/spectra/releases):
-
-| SO | Binario |
-|---|---|
-| Linux | `spectra-desktop-linux-x86_64` |
-| macOS (Apple Silicon) | `spectra-desktop-macos-arm64` |
-| Windows | `spectra-desktop-windows-x86_64.exe` |
-
-Colócalo en `desktop-native/target/release/` (o compílalo con `npm run desktop:build` si tienes Rust) y `spectra desktop` lo detecta automáticamente.
-
-## ⚡ Inicio rápido
-
-La primera vez no te pide nada: arranca con un **modelo gratuito** que funciona **sin API key**. Usa `/connect` (o el selector de modelos) cuando quieras añadir tu propio proveedor.
+También están disponibles:
 
 ```bash
-spectra            # TUI interactiva a pantalla completa
-spectra desktop    # App de escritorio nativa (ventana propia, WebView del SO)
-spectra web        # Interfaz web en el navegador
+spectra          # TUI interactiva
+spectra web      # Interfaz web
+spectra desktop  # IDE de escritorio
 ```
 
-Simplemente escribe lo que necesitas — Spectra detecta si es código o un problema del sistema y actúa. No hay que cambiar de modo.
-
-## 🖥️ Comandos CLI
+## Comandos útiles
 
 ```bash
-spectra                  # Lanza la TUI interactiva
-spectra run "<prompt>"   # Ejecución one-shot no interactiva
-spectra spec "<desc>"    # Genera requirements + design + tasks
-spectra run-spec <id>    # Ejecuta las tareas de un spec
-spectra ops "<síntoma>"  # Diagnostica y arregla un problema del sistema
-spectra desktop          # App de escritorio nativa
-spectra web              # Servidor + UI web (puerto 4096)
-spectra models           # Lista proveedores y modelos configurados
-spectra agent            # Lista los agentes disponibles
-spectra eval             # Scorecard de capacidades
-spectra doctor           # Chequea tu entorno y config (Node, git, modelo, keys)
-spectra update           # Actualiza Spectra a la última versión y recompila
-spectra completion <sh>  # Script de autocompletado (bash/zsh/fish/powershell)
-spectra init             # Inicializa .spectra/ en el proyecto
-spectra --help           # Ayuda
+spectra run "corrige este proyecto y ejecuta sus pruebas"
+spectra spec "construye una API con autenticación"
+spectra run-spec <spec-id>
+spectra doctor
+spectra models
+spectra agent
+spectra eval
+spectra core status
+spectra core restart
+spectra update
+spectra --help
 ```
 
-## 🔌 Proveedores y modelos
+## Desktop IDE
 
-Spectra funciona con cualquier proveedor. Conéctate con `/connect` en la TUI o edita `spectra.jsonc`:
+Spectra Desktop es la interfaz principal. Incluye:
 
-| Proveedor | Ejemplo de modelo |
-|---|---|
-| Gratis (sin clave) | `free/<modelo>` |
-| Anthropic | `anthropic/claude-sonnet-4-5` |
-| OpenAI | `openai/gpt-5.1` |
-| Google Gemini | `google/gemini-3.1-pro` |
-| Groq · Cerebras · Mistral · DeepSeek · OpenRouter · xAI | preset de un clic en `/connect` |
-| Ollama (local) | `ollama/llama3.2` |
-| Personalizado (base URL) | `mi-api/mi-modelo` |
+- Explorador de archivos protegido contra escapes del workspace.
+- Editor con pestañas y guardado atómico.
+- Terminal integrada bajo los perfiles de seguridad.
+- Git status, diffs y cambios pendientes.
+- Diagnósticos LSP y panel Problems.
+- Specs visuales y edición de requirements, design y tasks.
+- Panel de multiagentes aislados.
+- Model Lab y centro de skills, agentes, plugins y MCP.
+- Estado del Core, recuperación y production readiness.
 
-> Al conectar un proveedor, Spectra baja su lista de modelos **en vivo** (`/models`), así el selector siempre muestra modelos actuales y no una lista vieja.
+Consulta [Desktop IDE](docs/DESKTOP_IDE.md) y [Adaptive Desktop](docs/ADAPTIVE_DESKTOP.md).
 
-```jsonc
-// spectra.jsonc
-{
-  "model": "anthropic/claude-sonnet-4-5",
-  "provider": {
-    "anthropic": {
-      "options": { "apiKey": "{env:ANTHROPIC_API_KEY}" }
-    }
-  }
-}
-```
+## Core persistente
 
-### API personalizada / Base URL
-
-Cualquier endpoint compatible con OpenAI:
-
-```jsonc
-{
-  "model": "mi-api/mi-modelo",
-  "provider": {
-    "mi-api": {
-      "sdk": "openai-compatible",
-      "baseURL": "https://tu-host.com/v1",
-      "options": { "apiKey": "{env:MI_API_KEY}" }
-    }
-  }
-}
-```
-
-## 🧠 Capacidades del agente
-
-- **Búsqueda web** — la tool `websearch` descubre páginas (keyless por defecto vía DuckDuckGo; usa `TAVILY_API_KEY` o `BRAVE_API_KEY` si están definidas), luego `webfetch` las lee.
-- **Lista de tareas viva** — `todowrite`/`todoread`: el agente planifica pasos y marca su progreso, visible para ti.
-- **Steering automático** — el agente lee y respeta `AGENTS.md`, `CLAUDE.md`, `.cursorrules` y `.spectra/steering/*.md` (inclusión `always`) en **cada** turno.
-- **`@archivo`** — menciona archivos en tu mensaje (`revisa @src/app.ts`) y su contenido se adjunta como contexto automáticamente.
-- **Comandos personalizados** — crea `.spectra/commands/<nombre>.md` (con `$ARGUMENTS` / `$1`…`$9`) y úsalo como `/<nombre>` en la TUI.
-- **Edición coordinada** — `apply_patch` aplica varios cambios (crear/editar/borrar) de forma **atómica**: si algo falla, no se escribe nada, y todo el conjunto se puede deshacer con `/undo`.
-
-## 📐 Desarrollo guiado por especificaciones
-
-El comando `/spec` (o `spectra spec`) genera tres documentos:
-
-1. **requirements.md** — user stories + criterios de aceptación (EARS).
-2. **design.md** — arquitectura + diagramas de secuencia + estrategia de tests.
-3. **tasks.md** — tareas atómicas con dependencias explícitas.
-
-Luego `spectra run-spec <id>` construye un **grafo de dependencias**, agrupa las tareas en **waves** y ejecuta en paralelo las que no dependen entre sí:
-
-```
-Wave 1: #1, #2        (sin dependencias, en paralelo)
-Wave 2: #3, #4        (dependen de wave 1)
-Wave 3: #5            (depende de #3 y #4)
-```
-
-## 🤖 Agentes
-
-| Agente | Modo | Función |
-|---|---|---|
-| `build` | primary | Asistente general: escribe/ejecuta código y arregla el sistema |
-| `plan` | primary | Análisis read-only sin modificaciones |
-| `spec` | primary | Genera y ejecuta especificaciones |
-| `ops` | primary | Diagnostica y arregla problemas del SO |
-| `review` | subagent | Code review sin ediciones |
-| `explore` | subagent | Exploración rápida del codebase |
-
-Define agentes propios en `.spectra/agents/*.md`:
-
-```markdown
----
-description: Audita seguridad sin hacer cambios
-mode: subagent
-permission:
-  edit: deny
-  bash: deny
----
-
-Eres un auditor de seguridad. Busca vulnerabilidades OWASP Top 10.
-```
-
-## 🪝 Hooks
-
-Automatizaciones ante eventos en `.spectra/hooks/*.json`:
-
-```json
-{
-  "name": "Lint on Save",
-  "version": "1.0.0",
-  "when": { "type": "fileEdited", "patterns": ["*.ts"] },
-  "then": { "type": "runCommand", "command": "npm run lint" }
-}
-```
-
-Eventos: `fileEdited`, `fileCreated`, `fileDeleted`, `promptSubmit`, `agentStop`, `preToolUse`, `postToolUse`, `preTaskExecution`, `postTaskExecution`, `userTriggered`.
-
-## 🔐 Permisos
-
-```jsonc
-{
-  "permission": {
-    "edit": "allow",
-    "bash": {
-      "*": "allow",
-      "npm test*": "allow",
-      "rm -rf *": "deny",
-      "git push*": "ask"
-    }
-  }
-}
-```
-
-Niveles: `allow` (sin aprobación), `ask` (pide confirmación), `deny` (bloqueado). Gana la última regla que coincide. Las acciones privilegiadas o destructivas (sudo/UAC, borrados, servicios, drivers) están gateadas aunque tengas auto-aprobación activada.
-
-## 🧩 App de escritorio nativa
-
-`spectra desktop` arranca el motor y abre una ventana nativa que usa el **WebView del sistema** — WebView2 en Windows, WKWebView en macOS, WebKitGTK en Linux — sin empaquetar Chromium. Si no hay binario nativo compilado, cae limpiamente a un navegador Chromium en modo app y, por último, al navegador por defecto.
-
-Para compilar el binario nativo (opcional, requiere Rust) mira [`desktop-native/README.md`](desktop-native/README.md) con las dependencias por SO.
-
-## 🐳 Docker
-
-Levanta la API + UI web en un contenedor (útil en un server o una Raspberry Pi):
-
-```bash
-docker build -t spectra .
-docker run --rm -p 4096:4096 -e SPECTRA_HOST=0.0.0.0 \
-  -e OPENAI_API_KEY=sk-... \
-  -v "$PWD":/work -w /work spectra
-```
-
-Monta tu proyecto en `/work` para que el agente opere sobre él. El modelo gratis funciona sin key; añade las que necesites con `-e`. `SPECTRA_HOST=0.0.0.0` publica el servidor fuera del contenedor.
-
-## 🏗️ Arquitectura
-
-```
-spectra/
-├── src/
-│   ├── cli.ts              # Entry point del CLI
-│   ├── runtime.ts          # Ensambla todos los subsistemas
-│   ├── config/             # Carga y merge de configuración JSONC
-│   ├── provider/           # Clientes LLM (anthropic, openai, registry, routing)
-│   ├── agent/              # Definiciones de agentes y registry
-│   ├── tool/               # read, write, edit, bash, grep, glob, webfetch, git…
-│   ├── permission/         # Evaluación de permisos
-│   ├── session/            # Sesiones, snapshots, agent loop y compactación
-│   ├── spec/               # Spec engine: parser, grafo, ejecución en waves
-│   ├── autorun/            # Autopilot (long-running) + verificación
-│   ├── hook/  steering/    # Hooks event-driven + reglas persistentes
-│   ├── mcp/  lsp/  skill/  # MCP, diagnósticos LSP, skills
-│   ├── headroom/           # Compresión de contexto
-│   ├── server/  web/       # API HTTP + UI web
-│   ├── tui/                # Interfaz de terminal a pantalla completa
-│   ├── desktop/            # Launcher de la app nativa
-│   └── util/               # platform (cross-OS), logger, glob, ids
-├── desktop-native/         # Ventana nativa en Rust (wry/tao)
-├── test/                   # 300+ tests (node:test)
-└── spectra.example.jsonc   # Config de referencia
-```
-
-## 🛠️ Desarrollo
-
-```bash
-npm run build       # Compila a dist/
-npm run typecheck   # Type-check sin emitir
-npm test            # Ejecuta los 300+ tests (multiplataforma)
-npm run dev -- ...  # Ejecuta desde TypeScript sin compilar
-npm run eval        # Scorecard de capacidades
-```
-
-## 🤝 Contribuir
-
-Los issues y pull requests son bienvenidos. Antes de enviar un PR, asegúrate de que `npm run typecheck` y `npm test` pasen en verde.
-
-## 💛 Apoya el proyecto
-
-Si este proyecto te es útil y quieres ayudar a que siga mejorando, puedes apoyar con una donación:
-
-**PayPal**
-[`https://paypal.me/tuangel1346`](https://paypal.me/tuangel1346) · `tuangel1346@gmail.com`
-
-**Criptomonedas (Bitcoin)**
-```
-bc1q5nrv64jchep3hpqptvwmume8rkw68937zftfpa
-```
-
-Tu apoyo ayuda a mantener el desarrollo, mejorar la documentación y portar a más plataformas. ¡Gracias! 🙏
-
-## 👤 Autor
-
-**Angel Collazo**
-GitHub: [@tuangel134](https://github.com/tuangel134)
-
-## 📜 Licencia
-
-Publicado bajo la licencia MIT. Mira [`LICENSE`](LICENSE).
-
----
-
-<div align="center">
-<sub><strong>Spectra</strong> — Piensa en specs. Ejecuta en paralelo. Desde tu terminal. ⚡</sub>
-</div>
-
-### Persistent Spectra Core
-
-Spectra Desktop uses a persistent, project-scoped Core daemon. Closing and reopening the window reconnects to the same runtime and recoverable work.
+Cada proyecto utiliza un Core independiente. Cerrar la ventana no destruye el runtime; al abrirla de nuevo, Desktop se reconecta al mismo proyecto y recupera el trabajo disponible.
 
 ```bash
 spectra core status
@@ -359,26 +167,115 @@ spectra core stop
 spectra core restart
 ```
 
-See [Core architecture](docs/CORE_ARCHITECTURE.md).
+Consulta [Core architecture](docs/CORE_ARCHITECTURE.md).
 
-## Spectra Desktop IDE
+## Multiagentes aislados
 
-Desktop is the primary Spectra workspace. It combines the persistent Core with
-a project explorer, tabbed editor, terminal, Git diff/status, LSP diagnostics,
-visual specs, security controls, and the agent chat. See
-[docs/DESKTOP_IDE.md](docs/DESKTOP_IDE.md).
+Las tareas independientes pueden ejecutarse en paralelo dentro de ramas y worktrees separados. Spectra:
 
+- declara y bloquea los archivos de cada tarea;
+- serializa tareas que se superponen;
+- rechaza cambios fuera del alcance;
+- valida cada worktree antes del commit;
+- integra mediante cherry-pick;
+- aborta conflictos y revierte una integración defectuosa.
 
-## Multi-agent isolation
+Consulta [Multiagent isolation](docs/MULTIAGENT_ISOLATION.md).
 
-Spectra can execute spec tasks in isolated Git worktrees. File claims are locked, overlapping tasks are serialized, patches are reviewed against their declared files, validation runs before and after integration, and cherry-pick conflicts are aborted safely. See `docs/MULTIAGENT_ISOLATION.md`.
+## Modelos y proveedores
 
+Spectra soporta proveedores directos, modelos locales y cualquier servidor compatible con la API de OpenAI.
 
-## Adaptive Desktop profiles
+```jsonc
+{
+  "model": "mi-proveedor/mi-modelo",
+  "provider": {
+    "mi-proveedor": {
+      "sdk": "openai-compatible",
+      "baseURL": "https://servidor.example/v1",
+      "options": {
+        "apiKey": "{secret:provider:mi-proveedor}"
+      }
+    }
+  }
+}
+```
 
-Spectra Desktop includes a first-run onboarding and a versioned user profile for experience level, autonomy, language, explanation depth, privacy, model strategy, accessibility, and optional cost limits. Profiles can be exported and imported without API keys. Model Lab detects Ollama, LM Studio, llama.cpp and vLLM on loopback, and can probe any OpenAI-compatible endpoint. See `docs/ADAPTIVE_DESKTOP.md`.
+Model Lab normaliza URLs copiadas con `/models`, `/chat/completions` o `/responses`, descubre modelos y puede comprobar tool calling y salida estructurada. También detecta Ollama, LM Studio, llama.cpp y vLLM en loopback.
 
+## Seguridad
 
-## Spectra 1.0 production
+- Los proyectos con hooks, plugins o MCP ejecutables requieren Workspace Trust.
+- Las API keys no se guardan en texto plano dentro de la configuración.
+- Se usa Keychain, DPAPI o Secret Service cuando están disponibles.
+- El fallback portátil cifra cada secreto mediante AES-256-GCM.
+- Los manifiestos de actualización están firmados con Ed25519.
+- Cada artefacto se valida por tamaño y SHA-256 antes de activarse.
+- Las acciones privilegiadas o destructivas conservan gates obligatorios.
 
-Spectra 1.0 adds transactional self-update with rollback, signed update manifests and SHA-256 artifact verification, OS-backed secret storage with encrypted fallback, crash recovery records, E2E/stress/performance/security gates, SPDX SBOMs, Sigstore signatures, provenance, and native AppImage/DEB/Pacman/DMG/MSI/NSIS release packaging. See `docs/PRODUCTION_1_0.md`.
+Consulta [SECURITY.md](SECURITY.md) y [Production 1.0](docs/PRODUCTION_1_0.md).
+
+## Actualización y rollback
+
+```bash
+spectra update
+```
+
+La actualización desde Git es transaccional: compila y valida la nueva revisión antes de activarla. Las instalaciones empaquetadas comprueban el manifiesto firmado, tamaño y checksum. Si una puerta falla, Spectra mantiene o restaura la versión anterior.
+
+Para reinstalar la versión actual desde `main`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tuangel134/spectra/main/install.sh | bash
+```
+
+## Calidad
+
+Spectra 1.0 se publicó con:
+
+- 393 pruebas unitarias y de integración aprobadas.
+- E2E del Core y Desktop.
+- Pruebas de estrés de estado, locks y recuperación.
+- Auditoría de secretos y recursos remotos.
+- Presupuesto de rendimiento.
+- `cargo check`, Clippy y rustfmt para Desktop.
+- CI en Linux, Windows y macOS con Node.js 20 y 22.
+- CodeQL, SBOM SPDX, checksums, Sigstore y build provenance.
+
+## Desarrollo
+
+```bash
+git clone https://github.com/tuangel134/spectra.git
+cd spectra
+npm ci
+npm run build
+npm run typecheck
+npm test
+npm run audit:production
+npm run test:e2e
+npm run test:stress
+npm run test:performance
+```
+
+Para Desktop nativo:
+
+```bash
+npm run desktop:build
+```
+
+## Documentación
+
+- [Producción 1.0](docs/PRODUCTION_1_0.md)
+- [Arquitectura del Core](docs/CORE_ARCHITECTURE.md)
+- [Desktop IDE](docs/DESKTOP_IDE.md)
+- [Multiagentes](docs/MULTIAGENT_ISOLATION.md)
+- [Perfiles adaptativos](docs/ADAPTIVE_DESKTOP.md)
+- [Proceso de release](docs/RELEASING.md)
+
+## Autor y licencia
+
+Creado por [Angel Collazo](https://github.com/tuangel134). Publicado bajo licencia [MIT](LICENSE).
+
+---
+
+**Spectra — del prompt a una implementación validada, recuperable y lista para producción.**

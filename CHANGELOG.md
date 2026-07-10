@@ -75,3 +75,10 @@
 - Adaptive Desktop onboarding, exportable user profiles, accessibility, bilingual UI foundation, local model detection, Model Lab diagnostics, and unified ecosystem inventory.
 
 - Spectra 1.0 production hardening: transactional updates, signed manifests, secure secret references, crash recovery, product gates, SBOM/provenance, and cross-platform installers.
+
+## Documentation refresh
+
+- Rewrote the README for Spectra 1.0.0.
+- Added current CachyOS/fish, Linux, macOS and Windows installation steps.
+- Documented 393 passing tests, the persistent Core, Desktop IDE, isolated multiagents, adaptive profiles, secure secrets and signed updates.
+- Added docs/INSTALLATION.md.
