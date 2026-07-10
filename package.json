@@ -1,6 +1,6 @@
 {
   "name": "spectra-ai",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "The spec-driven AI coding agent for your terminal",
   "license": "MIT",
   "author": "Angel Collazo",
@@ -31,7 +31,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "assets",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
@@ -42,13 +45,21 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node scripts/run-tests.mjs",
     "start": "node dist/cli.js",
-    "desktop": "node dist/cli.js desktop", "core": "node dist/cli.js core",
+    "desktop": "node dist/cli.js desktop",
+    "core": "node dist/cli.js core",
     "desktop:build": "cd desktop-native && cargo build --release",
     "eval": "node dist/cli.js eval",
     "bench": "node dist/cli.js bench",
     "vsix": "cd vscode-extension && npm install && npx tsc -p ./ && npx vsce package",
-    "prepublishOnly": "npm run build && npm test",
-    "prepare": "npm run build"
+    "prepublishOnly": "npm run build && npm run typecheck && npm test && npm run audit:production && npm run test:e2e",
+    "prepare": "npm run build",
+    "test:e2e": "node scripts/smoke-e2e.mjs",
+    "test:stress": "node scripts/stress.mjs",
+    "test:performance": "node scripts/performance-budget.mjs",
+    "audit:production": "node scripts/security-audit.mjs",
+    "release:sbom": "node scripts/release/sbom.mjs",
+    "release:manifest": "node scripts/release/create-manifest.mjs",
+    "release:runtime": "node scripts/release/prepare-runtime.mjs desktop-native/runtime"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

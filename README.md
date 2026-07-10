@@ -377,3 +377,8 @@ Spectra can execute spec tasks in isolated Git worktrees. File claims are locked
 ## Adaptive Desktop profiles
 
 Spectra Desktop includes a first-run onboarding and a versioned user profile for experience level, autonomy, language, explanation depth, privacy, model strategy, accessibility, and optional cost limits. Profiles can be exported and imported without API keys. Model Lab detects Ollama, LM Studio, llama.cpp and vLLM on loopback, and can probe any OpenAI-compatible endpoint. See `docs/ADAPTIVE_DESKTOP.md`.
+
+
+## Spectra 1.0 production
+
+Spectra 1.0 adds transactional self-update with rollback, signed update manifests and SHA-256 artifact verification, OS-backed secret storage with encrypted fallback, crash recovery records, E2E/stress/performance/security gates, SPDX SBOMs, Sigstore signatures, provenance, and native AppImage/DEB/Pacman/DMG/MSI/NSIS release packaging. See `docs/PRODUCTION_1_0.md`.

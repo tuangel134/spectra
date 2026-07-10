@@ -89,7 +89,7 @@ test(
     const saved = parseJsonc(readFileSync(cfg, "utf-8")) as {
       provider: { opencode: { options: { apiKey: string } } }
     }
-    assert.equal(saved.provider.opencode.options.apiKey, "sk-zen-suscripcion")
+    assert.equal(saved.provider.opencode.options.apiKey, "{secret:provider:opencode}")
   }),
 )
 

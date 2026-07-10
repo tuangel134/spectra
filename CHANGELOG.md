@@ -73,3 +73,5 @@
 - Multi-agent isolation with Git worktrees, file leases, conflict-aware scheduling, patch review, validation, safe integration, and recovery.
 
 - Adaptive Desktop onboarding, exportable user profiles, accessibility, bilingual UI foundation, local model detection, Model Lab diagnostics, and unified ecosystem inventory.
+
+- Spectra 1.0 production hardening: transactional updates, signed manifests, secure secret references, crash recovery, product gates, SBOM/provenance, and cross-platform installers.

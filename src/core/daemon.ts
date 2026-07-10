@@ -5,6 +5,7 @@ import { createServer } from "../server/index.js"
 import { writeCoreLease, removeCoreLease } from "./lease.js"
 import { CORE_PROTOCOL_VERSION, type CoreLease } from "./protocol.js"
 import { CoreStateStore } from "./state-store.js"
+import { CrashRecoveryJournal } from "../production/crash-recovery.js"
 
 interface DaemonArgs {
   cwd: string
@@ -27,6 +28,8 @@ export async function runCoreDaemonCli(args: string[]): Promise<void> {
   const options = parseDaemonArgs(args)
   const startedAt = Date.now()
   const instanceId = `core_${randomUUID()}`
+  let recovery = new CrashRecoveryJournal(options.cwd, "1.0.0")
+  const previousCrash = recovery.begin(instanceId)
   const runtime = createRuntime({ cwd: options.cwd })
 
   let activeProjectRoot = runtime.config.projectRoot
@@ -34,6 +37,7 @@ export async function runCoreDaemonCli(args: string[]): Promise<void> {
   state.setMeta("protocolVersion", String(CORE_PROTOCOL_VERSION))
   state.setMeta("instanceId", instanceId)
   state.record("core.starting", { pid: process.pid, port: options.port, stateBackend: state.backend })
+  if (previousCrash) state.record("core.recovery.detected", { previousCrash })
 
   const lease: CoreLease = {
     protocolVersion: CORE_PROTOCOL_VERSION,
@@ -55,8 +59,12 @@ export async function runCoreDaemonCli(args: string[]): Promise<void> {
     try { state.close() } catch { /* best effort */ }
     removeCoreLease(previousRoot, instanceId)
 
+    recovery.clean("project-switch")
     activeProjectRoot = nextRoot
     state = new CoreStateStore(activeProjectRoot)
+    recovery = new CrashRecoveryJournal(activeProjectRoot, "1.0.0")
+    const projectCrash = recovery.begin(instanceId)
+    if (projectCrash) state.record("core.recovery.detected", { previousCrash: projectCrash })
     state.setMeta("protocolVersion", String(CORE_PROTOCOL_VERSION))
     state.setMeta("instanceId", instanceId)
     lease.projectRoot = activeProjectRoot
@@ -87,6 +95,7 @@ export async function runCoreDaemonCli(args: string[]): Promise<void> {
 
   const heartbeat = setInterval(() => {
     lease.heartbeatAt = Date.now()
+    recovery.heartbeat()
     lease.projectRoot = activeProjectRoot
     lease.stateBackend = state.backend
     try { writeCoreLease(activeProjectRoot, lease) } catch { /* best effort */ }
@@ -137,6 +146,8 @@ export async function runCoreDaemonCli(args: string[]): Promise<void> {
     try { state.record("core.stopped", { reason, exitCode }) } catch { /* best effort */ }
     try { state.close() } catch { /* best effort */ }
     removeCoreLease(activeProjectRoot, instanceId)
+    if (exitCode === 0) recovery.clean(reason)
+    else if (!recovery.read()?.error) recovery.fail(reason)
     process.exitCode = exitCode
     finishShutdown?.()
   }
@@ -145,10 +156,12 @@ export async function runCoreDaemonCli(args: string[]): Promise<void> {
   process.once("SIGTERM", () => { void shutdown("SIGTERM") })
   process.once("uncaughtException", (error) => {
     try { state.record("core.failed", { error: error.stack ?? error.message }) } catch { /* ignore */ }
+    recovery.fail("uncaughtException", error)
     void shutdown("uncaughtException", 1)
   })
   process.once("unhandledRejection", (reason) => {
     try { state.record("core.failed", { error: String(reason) }) } catch { /* ignore */ }
+    recovery.fail("unhandledRejection", reason)
     void shutdown("unhandledRejection", 1)
   })
 

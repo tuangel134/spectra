@@ -30,6 +30,7 @@ import type { Clarification } from "../spec/clarify.js"
 import { runSpecWorkflow, generateClarifyingQuestions, autoAnswerQuestions } from "../workflow/spec-workflow.js"
 import { reloadRuntime, connectIntegrations } from "../runtime.js";
 import { adaptationFor } from "../adaptation/index.js"
+import { ProductionService } from "../production/index.js"
 import { SpectraIsolatedAgentRunner } from "../multiagent/agent-runner.js"
 import { applySecurityProfile, isSecurityProfile, listSecurityProfiles } from "../security/profiles.js"
 import {
@@ -178,15 +179,17 @@ export function createServer(rt: Runtime, options: ServerOptions) {
       res.end(html) }), compile("GET", "/desktop", (_req, res) => {
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
-        "content-security-policy": "default-src 'self'; frame-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'",
+        "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
         "referrer-policy": "no-referrer",
         "x-content-type-options": "nosniff",
+        "x-frame-options": "SAMEORIGIN",
       })
       const injected = isLoopback ? authToken : ""
       res.end(DESKTOP_HTML.replace("__SPECTRA_AUTH_TOKEN__", JSON.stringify(injected)))
     }), compile("GET", "/health", (_req, res) => json(res, 200, {
       status: "ok",
-      version: "0.1.0",
+      version: "1.0.0",
       protocolVersion: options.core?.protocolVersion ?? CORE_PROTOCOL_VERSION,
       instanceId: options.core?.instanceId,
       pid: process.pid,
@@ -707,6 +710,19 @@ export function createServer(rt: Runtime, options: ServerOptions) {
 
 
 
+    // ----- Production 1.0 readiness and crash recovery -----
+    compile("GET", "/api/production/status", (_req, res) => {
+      json(res, 200, new ProductionService(rt.config.projectRoot).status())
+    }),
+    compile("GET", "/api/production/recovery", (_req, res) => {
+      const journal = new ProductionService(rt.config.projectRoot).recovery()
+      json(res, 200, { interrupted: journal.interrupted(), record: journal.read() })
+    }),
+    compile("POST", "/api/production/recovery/ack", (_req, res) => {
+      const acknowledged = new ProductionService(rt.config.projectRoot).recovery().acknowledge()
+      rt.pushAudit("production", acknowledged ? "Acknowledged crash recovery record" : "No crash recovery record to acknowledge")
+      json(res, 200, { ok: true, acknowledged })
+    }),
     // ----- Adaptive Desktop and universal user profile -----
     compile("GET", "/api/adaptation/profile", (_req, res) => {
       const service = adaptationFor(rt.config.projectRoot)

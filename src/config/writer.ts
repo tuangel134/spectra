@@ -16,6 +16,7 @@ import { join, dirname } from "node:path"
 import { parseJsonc } from "./loader.js"
 import { configDir } from "../util/platform.js"
 import type { RawConfig, SecurityProfile } from "./types.js";
+import { SecretStore } from "../production/secret-store.js"
 import { SECURITY_PROFILES } from "../security/profiles.js"
 
 /** Absolute path to the global config file. */
@@ -77,11 +78,12 @@ export function updateConfig(path: string, mutate: (config: RawConfig) => void):
  * Stores it inline so it is available without an environment variable.
  */
 export function saveProviderKey(providerId: string, apiKey: string, baseURL?: string): string {
+  const secretRef = new SecretStore().set(`provider:${providerId}`, apiKey)
   const path = globalConfigPath()
   updateConfig(path, (config) => {
     config.provider ??= {}
     const existing = config.provider[providerId] ?? {}
-    existing.options = { ...existing.options, apiKey }
+    existing.options = { ...existing.options, apiKey: secretRef }
     if (baseURL) existing.baseURL = baseURL
     config.provider[providerId] = existing
   })
@@ -109,6 +111,7 @@ export function savePermission(tool: string, level: "allow" | "ask" | "deny", pr
 
 /** Remove a provider's stored credentials from the global config. */
 export function removeProvider(providerId: string): string {
+  new SecretStore().delete(`provider:${providerId}`)
   const path = globalConfigPath()
   updateConfig(path, (config) => {
     if (config.provider) delete config.provider[providerId]
@@ -131,7 +134,7 @@ export function saveCustomProvider(opts: {
     const existing = config.provider[id] ?? {}
     const apiKey = opts.apiKey?.trim()
     const options = { ...existing.options }
-    if (apiKey) options.apiKey = apiKey
+    if (apiKey) options.apiKey = new SecretStore().set(`provider:${id}`, apiKey)
 
     const ids = [...new Set([...(opts.models ?? []), ...(opts.model ? [opts.model] : [])]
       .map((model) => model.trim())

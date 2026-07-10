@@ -163,7 +163,7 @@ async function main(): Promise<void> {
     return
   }
   if (command === "--version" || command === "-v") {
-    stdout.write("spectra v0.1.0\n")
+    stdout.write("spectra v1.0.0\n")
     return
   }
   // `spectra --new` / `-n` launches the default interactive UI with a fresh
@@ -429,7 +429,7 @@ async function main(): Promise<void> {
 
     case "update": {
       const { runUpdate } = await import("./cli/update.js")
-      process.exitCode = runUpdate()
+      process.exitCode = await runUpdate(argv.slice(1))
       break
     }
 

@@ -1,57 +1,113 @@
-name: Release desktop binaries
-
-# On every version tag, build the tiny native desktop window (wry/tao) for
-# Linux, macOS and Windows and attach the binaries to the GitHub Release, so
-# users can just download the build for their OS — no Rust toolchain needed.
-
+name: Spectra 1.0 Release
 on:
   push:
-    tags:
-      - "v*"
-
+    tags: ["v*"]
+  workflow_dispatch:
 permissions:
-  contents: write
-
+  contents: read
 jobs:
-  build:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:e2e
+      - run: npm run test:stress
+      - run: npm run audit:production
+  package:
+    needs: validate
+    name: Package ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            asset: spectra-desktop-linux-x86_64
-            bin: spectra-desktop
-          - os: macos-latest
-            asset: spectra-desktop-macos-arm64
-            bin: spectra-desktop
-          - os: windows-latest
-            asset: spectra-desktop-windows-x86_64.exe
-            bin: spectra-desktop.exe
-    runs-on: ${{ matrix.os }}
+          - { os: ubuntu-latest, platform: linux, arch: x64, formats: "appimage,deb,pacman" }
+          - { os: windows-latest, platform: windows, arch: x64, formats: "nsis,wix" }
+          - { os: macos-15, platform: macos, arch: arm64, formats: "app,dmg" }
+          - { os: macos-15-intel, platform: macos, arch: x64, formats: "app,dmg" }
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux WebView deps
-        if: runner.os == 'Linux'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
-
-      - name: Build native desktop
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential libfuse2
+      - run: npm ci
+      - run: npm run build
+      - name: Bundle the matching Node runtime
+        run: node scripts/release/prepare-runtime.mjs desktop-native/runtime
+      - run: cargo install cargo-packager --version 0.11.8 --locked
+      - name: Package native application
         working-directory: desktop-native
-        run: cargo build --release
-
-      - name: Stage binary
-        shell: bash
-        run: |
-          mkdir -p out
-          cp "desktop-native/target/release/${{ matrix.bin }}" "out/${{ matrix.asset }}"
-
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
+        run: cargo packager --release --formats "${{ matrix.formats }}" -c packager.json
+      - name: Collect packages with stable names
+        run: node scripts/release/collect-artifacts.mjs "${{ matrix.platform }}" "${{ matrix.arch }}" desktop-native/target release-assets
+      - uses: actions/upload-artifact@v4
         with:
-          files: out/${{ matrix.asset }}
+          name: spectra-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: spectra-*
+          path: release-assets
+          merge-multiple: true
+      - name: Add npm/source package
+        run: npm pack --pack-destination release-assets
+      - name: Generate SPDX SBOM
+        run: node scripts/release/sbom.mjs release-assets/sbom.spdx.json
+      - name: Build signed update manifest
+        env:
+          SPECTRA_RELEASE_VERSION: ${{ github.ref_name }}
+          SPECTRA_UPDATE_PRIVATE_KEY_B64: ${{ secrets.SPECTRA_UPDATE_PRIVATE_KEY_B64 }}
+        run: node scripts/release/create-manifest.mjs release-assets
+      - name: Verify release manifest
+        run: test -s release-assets/update-manifest.json
+      - name: Generate checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS
+      - uses: sigstore/cosign-installer@v3
+      - name: Keyless-sign every release asset
+        working-directory: release-assets
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          for file in *; do
+            case "$file" in *.sig|*.pem) continue;; esac
+            cosign sign-blob --yes --output-signature "$file.sig" --output-certificate "$file.pem" "$file"
+          done
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/*
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
           fail_on_unmatched_files: true
+          files: release-assets/*

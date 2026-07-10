@@ -1,103 +1,65 @@
-/**
- * Auth manager — subscription login via device flow + token storage.
- *
- * Tokens are stored in ~/.config/spectra/auth.json (chmod 600) and also written
- * into the provider config so the resolved model picks them up as an API key.
- */
-
-import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSync } from "node:fs"
-import { join, dirname } from "node:path"
-
+/** Subscription login with OS-backed secret storage and plaintext migration. */
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { runDeviceFlow, DEVICE_FLOW_PRESETS, type DeviceFlowConfig, type DeviceCodeResponse } from "./device.js"
 import { saveProviderKey } from "../config/writer.js"
 import { configDir } from "../util/platform.js"
-
+import { SecretStore } from "../production/secret-store.js"
 export * from "./device.js"
 
-interface AuthFile {
-  tokens: Record<string, { accessToken: string; createdAt: number }>
-}
-
-function authPath(): string {
-  return join(configDir(), "auth.json")
-}
-
-function readAuth(): AuthFile {
-  const path = authPath()
-  if (!existsSync(path)) return { tokens: {} }
-  try {
-    return JSON.parse(readFileSync(path, "utf-8")) as AuthFile
-  } catch {
-    return { tokens: {} }
-  }
-}
-
+interface LegacyToken { accessToken?: string; createdAt?: number }
+interface AuthFile { providers?: Record<string, { createdAt: number }>; tokens?: Record<string, LegacyToken> }
+function authPath(): string { return join(configDir(), "auth.json") }
+function readAuth(): AuthFile { if (!existsSync(authPath())) return { providers: {} }; try { return JSON.parse(readFileSync(authPath(), "utf8")) as AuthFile } catch { return { providers: {} } } }
 function writeAuth(data: AuthFile): void {
-  const path = authPath()
-  mkdirSync(dirname(path), { recursive: true })
-  // Atomic write (temp + rename); create the temp file 0600 so the token is
-  // never briefly world-readable, and a crash mid-write can't corrupt auth.json.
-  const tmp = path + ".tmp"
-  writeFileSync(tmp, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 })
-  try {
-    renameSync(tmp, path)
-    chmodSync(path, 0o600)
-  } catch {
-    /* best-effort on platforms without chmod/rename semantics */
-  }
+  const file = authPath(); mkdirSync(dirname(file), { recursive: true })
+  const temporary = file + ".tmp"
+  writeFileSync(temporary, JSON.stringify({ providers: data.providers ?? {} }, null, 2), { encoding: "utf8", mode: 0o600 })
+  renameSync(temporary, file)
+  try { chmodSync(file, 0o600) } catch { /* Windows */ }
 }
+function secretKey(provider: string): string { return `auth:${provider}` }
 
 export class AuthManager {
-  /** Whether a token is stored for a provider. */
-  has(provider: string): boolean {
-    return !!readAuth().tokens[provider]
-  }
-
-  /** Retrieve a stored access token. */
-  token(provider: string): string | undefined {
-    return readAuth().tokens[provider]?.accessToken
-  }
-
-  /** List providers with a stored token. */
-  list(): string[] {
-    return Object.keys(readAuth().tokens)
-  }
-
-  /** Persist a token and mirror it into the provider config as an API key. */
-  save(provider: string, accessToken: string): void {
-    const auth = readAuth()
-    auth.tokens[provider] = { accessToken, createdAt: Date.now() }
+  private readonly secrets = new SecretStore()
+  private migrate(provider: string, auth = readAuth()): string | undefined {
+    const stored = this.secrets.get(secretKey(provider))
+    if (stored) return stored
+    const legacy = auth.tokens?.[provider]?.accessToken
+    if (!legacy) return undefined
+    this.secrets.set(secretKey(provider), legacy)
+    auth.providers ??= {}
+    auth.providers[provider] = { createdAt: auth.tokens?.[provider]?.createdAt ?? Date.now() }
+    if (auth.tokens) delete auth.tokens[provider]
     writeAuth(auth)
+    return legacy
+  }
+  has(provider: string): boolean { return Boolean(this.migrate(provider)) }
+  token(provider: string): string | undefined { return this.migrate(provider) }
+  list(): string[] {
+    const auth = readAuth()
+    const names = new Set([...Object.keys(auth.providers ?? {}), ...Object.keys(auth.tokens ?? {})])
+    return [...names].filter((provider) => Boolean(this.migrate(provider, auth))).sort()
+  }
+  save(provider: string, accessToken: string): void {
+    this.secrets.set(secretKey(provider), accessToken)
+    const auth = readAuth(); auth.providers ??= {}; auth.providers[provider] = { createdAt: Date.now() }; if (auth.tokens) delete auth.tokens[provider]; writeAuth(auth)
     saveProviderKey(provider, accessToken)
   }
-
-  /** Remove a stored token. */
   logout(provider: string): boolean {
     const auth = readAuth()
-    if (!auth.tokens[provider]) return false
-    delete auth.tokens[provider]
+    const removedAuthSecret = this.secrets.delete(secretKey(provider))
+    const removedProviderSecret = this.secrets.delete(`provider:${provider}`)
+    const existed = removedAuthSecret || removedProviderSecret || Boolean(auth.providers?.[provider]) || Boolean(auth.tokens?.[provider])
+    if (auth.providers) delete auth.providers[provider]
+    if (auth.tokens) delete auth.tokens[provider]
     writeAuth(auth)
-    return true
+    return existed
   }
-
-  /** Resolve the device-flow config for a provider (preset or custom). */
-  configFor(provider: string, custom?: DeviceFlowConfig): DeviceFlowConfig | undefined {
-    return custom ?? DEVICE_FLOW_PRESETS[provider]
-  }
-
-  /** Run the device-flow login for a provider and store the token. */
-  async login(
-    provider: string,
-    onPrompt: (info: DeviceCodeResponse) => void,
-    custom?: DeviceFlowConfig,
-  ): Promise<void> {
+  configFor(provider: string, custom?: DeviceFlowConfig): DeviceFlowConfig | undefined { return custom ?? DEVICE_FLOW_PRESETS[provider] }
+  async login(provider: string, onPrompt: (info: DeviceCodeResponse) => void, custom?: DeviceFlowConfig): Promise<void> {
     const config = this.configFor(provider, custom)
-    if (!config) {
-      throw new Error(
-        `No device-flow config for "${provider}". Known: ${Object.keys(DEVICE_FLOW_PRESETS).join(", ") || "(none)"}.`,
-      )
-    }
-    const token = await runDeviceFlow(config, onPrompt)
-    this.save(provider, token)
+    if (!config) throw new Error(`No device-flow config for "${provider}". Known: ${Object.keys(DEVICE_FLOW_PRESETS).join(", ") || "(none)"}.`)
+    this.save(provider, await runDeviceFlow(config, onPrompt))
   }
 }

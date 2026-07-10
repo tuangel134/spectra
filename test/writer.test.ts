@@ -103,8 +103,9 @@ test(
     const provider = config.provider?.mylab
     assert.equal(provider?.sdk, "openai-compatible")
     assert.equal(provider?.baseURL, "https://api.mylab.test/v1")
-    assert.equal(provider?.options?.apiKey, "sk-1")
+    assert.equal(provider?.options?.apiKey, "{secret:provider:mylab}")
     assert.deepEqual(provider?.models?.fast, { name: "fast" })
+    removeProvider("mylab")
   }),
 )
 

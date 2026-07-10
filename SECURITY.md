@@ -29,3 +29,8 @@ Profiles are project-scoped and can be changed from Spectra Desktop.
 ## Reporting vulnerabilities
 
 Do not open a public issue containing a working exploit, credential, or private repository data. Contact the maintainer privately and include the affected version, platform, reproduction steps, and expected impact.
+
+
+## Release integrity
+
+Official release manifests are Ed25519-signed, artifacts are SHA-256 verified, and release assets receive Sigstore keyless signatures plus GitHub provenance. Provider secrets are stored through the OS keychain when available and are never exported by adaptation profiles.

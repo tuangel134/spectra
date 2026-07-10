@@ -282,11 +282,9 @@ export const WEB_HTML = String.raw`<!doctype html>
   .searchbar button { background:none; border:0; color:var(--faint); cursor:pointer; font-size:14px; }
   .msg.search-hide { display:none; }
   .switch input:checked + .track { background:var(--primary); } .switch input:checked + .track::before { transform:translateX(18px); }
+.local-code-editor{width:100%;height:100%;resize:none;border:0;outline:0;padding:12px 14px;background:#0d1117;color:var(--text);font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2;white-space:pre;overflow:auto}
 </style>
 </head>
-<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css">
 <body>
 <div class="app">
   <header>
@@ -713,13 +711,19 @@ async function renderProjects(body){
     renderTab();
   });
 }
-function loadMonaco(){ return new Promise((resolve)=>{ if(window.monaco){ resolve(); return; }
-  const base="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min";
-  const s=document.createElement("script"); s.src=base+"/vs/loader.min.js"; s.onload=()=>{
-    window.require.config({paths:{vs:base+"/vs"}});
-    window.require(["vs/editor/editor.main"],()=>resolve());
-  }; document.head.appendChild(s);
-});}
+function localEditor(host){
+ if(monacoEditor) return monacoEditor;
+ host.innerHTML='<textarea class="local-code-editor" spellcheck="false" aria-label="Code editor"></textarea>';
+ const area=host.querySelector("textarea");
+ monacoEditor={
+  getValue:()=>area.value,
+  setValue:(value)=>{ area.value=String(value??""); },
+  setModel:(model)=>{ area.value=model&&typeof model.getValue==="function"?model.getValue():String((model&&model.value)??""); }
+ };
+ return monacoEditor;
+}
+function loadMonaco(){ return Promise.resolve(); }
+
 function edLang(path){ const e=(path.split(".").pop()||"").toLowerCase(); const m={ts:"typescript",tsx:"typescript",js:"javascript",jsx:"javascript",mjs:"javascript",cjs:"javascript",json:"json",py:"python",go:"go",rs:"rust",md:"markdown",css:"css",html:"html",sh:"shell",yml:"yaml",yaml:"yaml"}; return m[e]||"plaintext"; }
 async function renderEditor(body){
   body.innerHTML='<div class="ed"><div class="edtree" id="edTree"></div><div class="edmain"><div class="edbar"><span id="edPath" class="mut">Select a file…</span><span class="grow"></span><button class="btn" id="edSave" disabled>Save</button></div><div class="edhost" id="edHost"></div></div></div>';
@@ -727,15 +731,15 @@ async function renderEditor(body){
   $("edTree").innerHTML=edFiles.map(f=>'<div class="edfile'+(f===edCurrentFile?" on":"")+'" data-f="'+esc(f)+'">'+esc(f)+'</div>').join("")||'<div class="mut">No files.</div>';
   $("edTree").querySelectorAll("[data-f]").forEach(el=>el.onclick=()=>openInEditor(el.dataset.f));
   await loadMonaco();
-  if(!monacoEditor){ monacoEditor=window.monaco.editor.create($("edHost"),{ theme:"vs-dark", automaticLayout:true, fontSize:13, minimap:{enabled:false}, value:"", language:"plaintext" }); }
+  if(!monacoEditor){ localEditor($("edHost")); }
   $("edSave").onclick=saveEditor;
   if(edCurrentFile) await openInEditor(edCurrentFile);
 }
 async function openInEditor(path){
   edCurrentFile=path; const d=await jpost("/api/fs/read",{path}).then(r=>r.json()).catch(()=>null);
   if(!d||d.error){ return; }
-  if(!monacoEditor){ await loadMonaco(); monacoEditor=window.monaco.editor.create($("edHost"),{theme:"vs-dark",automaticLayout:true,fontSize:13,minimap:{enabled:false}}); }
-  const model=window.monaco.editor.createModel(d.content, edLang(path));
+  if(!monacoEditor){ await loadMonaco(); localEditor($("edHost")); }
+  const model={value:d.content,getValue:()=>d.content};
   monacoEditor.setModel(model);
   if($("edPath")) $("edPath").textContent=path;
   if($("edSave")) $("edSave").disabled=false;

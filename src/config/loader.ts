@@ -19,6 +19,7 @@ import type { RawConfig, SpectraConfig } from "./types.js"
 import { DEFAULT_CONFIG } from "./defaults.js"
 import { logger } from "../util/logger.js"
 import { configDir as spectraConfigDir, isAbsolutePath } from "../util/platform.js"
+import { SecretStore } from "../production/secret-store.js"
 
 /** Strip // line comments and /* block *​/ comments from JSONC text. */
 export function stripJsonComments(text: string): string {
@@ -132,10 +133,11 @@ export function parseJsonc(text: string): unknown {
 
 /** Resolve {env:VAR} and {file:path} substitutions inside a string. */
 function resolveString(value: string, configDir: string): string {
-  return value.replace(/\{(env|file):([^}]+)\}/g, (_match, type, ref) => {
+  return value.replace(/\{(env|file|secret):([^}]+)\}/g, (_match, type, ref) => {
     if (type === "env") {
       return process.env[ref] ?? ""
     }
+    if (type === "secret") return new SecretStore().get(ref) ?? ""
     // file
     const filePath = ref.startsWith("~")
       ? join(homedir(), ref.slice(1))

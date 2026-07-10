@@ -1,0 +1,58 @@
+{
+  "name": "spectra-ai",
+  "version": "0.1.0",
+  "description": "The spec-driven AI coding agent for your terminal",
+  "license": "MIT",
+  "author": "Angel Collazo",
+  "keywords": [
+    "ai",
+    "agent",
+    "cli",
+    "coding-assistant",
+    "llm",
+    "tui",
+    "spec-driven",
+    "opencode",
+    "anthropic",
+    "openai"
+  ],
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuangel134/spectra.git"
+  },
+  "homepage": "https://github.com/tuangel134/spectra#readme",
+  "bugs": {
+    "url": "https://github.com/tuangel134/spectra/issues"
+  },
+  "bin": {
+    "spectra": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node scripts/run-tests.mjs",
+    "start": "node dist/cli.js",
+    "desktop": "node dist/cli.js desktop", "core": "node dist/cli.js core",
+    "desktop:build": "cd desktop-native && cargo build --release",
+    "eval": "node dist/cli.js eval",
+    "bench": "node dist/cli.js bench",
+    "vsix": "cd vscode-extension && npm install && npx tsc -p ./ && npx vsce package",
+    "prepublishOnly": "npm run build && npm test",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

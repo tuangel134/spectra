@@ -97,7 +97,7 @@ test(
     const saved = parseJsonc(readFileSync(globalConfig, "utf-8")) as {
       provider: { opencode: { options: { apiKey: string } } }
     }
-    assert.equal(saved.provider.opencode.options.apiKey, "sk-mi-suscripcion-zen")
+    assert.equal(saved.provider.opencode.options.apiKey, "{secret:provider:opencode}")
     assert.equal(rt.providers.hasCredentials("opencode"), true)
   }),
 )

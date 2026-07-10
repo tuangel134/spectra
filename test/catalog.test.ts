@@ -83,6 +83,6 @@ test(
     const saved = parseJsonc(readFileSync(cfg, "utf-8")) as {
       provider: { anthropic: { options: { apiKey: string } } }
     }
-    assert.equal(saved.provider.anthropic.options.apiKey, "sk-ant-key")
+    assert.equal(saved.provider.anthropic.options.apiKey, "{secret:provider:anthropic}")
   }),
 )

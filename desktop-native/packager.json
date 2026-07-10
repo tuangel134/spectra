@@ -1,0 +1,68 @@
+{
+  "$schema": "https://schema.crabnebula.dev/cargo-packager/config/2",
+  "productName": "Spectra",
+  "version": "1.0.0",
+  "identifier": "dev.spectra.desktop",
+  "category": "DeveloperTool",
+  "publisher": "Angel Collazo",
+  "copyright": "Copyright \u00a9 2026 Angel Collazo",
+  "beforePackagingCommand": "cargo build --release",
+  "outDir": "target/release",
+  "binaries": [
+    {
+      "path": "spectra-desktop",
+      "main": true
+    }
+  ],
+  "resources": [
+    {
+      "src": "runtime",
+      "target": "runtime"
+    },
+    {
+      "src": "../dist",
+      "target": "dist"
+    },
+    {
+      "src": "../assets",
+      "target": "assets"
+    },
+    {
+      "src": "../package.json",
+      "target": "package.json"
+    },
+    {
+      "src": "../LICENSE",
+      "target": "LICENSE"
+    }
+  ],
+  "fileAssociations": [
+    {
+      "extensions": [
+        "spectra"
+      ],
+      "name": "Spectra Project",
+      "description": "Spectra project workspace",
+      "role": "editor"
+    }
+  ],
+  "deepLinkProtocols": [
+    {
+      "schemes": [
+        "spectra"
+      ],
+      "name": "Spectra"
+    }
+  ],
+  "description": "Agent-first IDE with persistent Core, spec-driven workflows, isolated multiagents, and secure model integrations.",
+  "homepage": "https://github.com/tuangel134/spectra",
+  "authors": [
+    "Angel Collazo"
+  ],
+  "licenseFile": "../LICENSE",
+  "icons": [
+    "../assets/spectra-icon.png",
+    "../assets/spectra-icon.ico",
+    "../assets/spectra-icon.icns"
+  ]
+}
