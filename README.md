@@ -283,6 +283,22 @@ Creado por [Angel Collazo](https://github.com/tuangel134). Publicado bajo licenc
 
 ## Linux/NVIDIA Desktop compatibility
 
+On Linux, Spectra attaches Wry to Tao's built-in default GTK box rather than
+trying to add a second child directly to GtkApplicationWindow. This is the
+container Tao reserves for embedded views and prevents GTK from rejecting the
+WebKitWebView and leaving the native window blank.
+
+Spectra also disables WebKitGTK DMA-BUF rendering by default to avoid GBM
+buffer failures on NVIDIA and mixed-GPU systems.
+
+Manual diagnostic overrides:
+
+```bash
+SPECTRA_NATIVE_WAYLAND=1 spectra desktop       # use native Wayland
+SPECTRA_ENABLE_DMABUF=1 spectra desktop        # re-enable DMA-BUF
+SPECTRA_SOFTWARE_RENDERING=1 spectra desktop   # disable compositing
+```
+
 On Linux, Spectra attaches Wry directly to Tao's GTK window instead of using
 an X11 raw window handle. This is Wry's supported path for both X11 and
 Wayland and prevents a visible but permanently white WebKit surface.

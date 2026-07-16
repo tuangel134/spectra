@@ -173,12 +173,18 @@ fn main() -> wry::Result<()> {
 
     // Wry 0.45 has two constructors. The raw-window-handle constructor is
     // X11-only and can create a visible but permanently white WebKit surface.
-    // Tao is GTK-backed on Linux, so attach Wry directly to Tao's GTK window.
+    // Tao is GTK-backed on Linux. Its GtkApplicationWindow already owns a
+    // default GtkBox, so attach Wry to that child container instead of trying
+    // to add a second child directly to the single-child application window.
     #[cfg(target_os = "linux")]
     let builder = {
         use tao::platform::unix::WindowExtUnix;
         use wry::WebViewBuilderExtUnix;
-        WebViewBuilder::new_gtk(window.gtk_window())
+        WebViewBuilder::new_gtk(
+            window
+                .default_vbox()
+                .expect("Tao Linux window missing its default GTK container"),
+        )
     };
 
     #[cfg(not(target_os = "linux"))]

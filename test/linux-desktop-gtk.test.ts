@@ -10,7 +10,8 @@ test("Linux Desktop uses Wry's GTK-native constructor", () => {
   const source = read("desktop-native/src/main.rs")
   assert.match(source, /use tao::platform::unix::WindowExtUnix/)
   assert.match(source, /use wry::WebViewBuilderExtUnix/)
-  assert.match(source, /WebViewBuilder::new_gtk\(window\.gtk_window\(\)\)/)
+  assert.match(source, /WebViewBuilder::new_gtk\([\s\S]*window[\s\S]*\.default_vbox\(\)/)
+  assert.doesNotMatch(source, /WebViewBuilder::new_gtk\(window\.gtk_window\(\)\)/)
 })
 
 test("non-Linux Desktop keeps the cross-platform raw-window constructor", () => {
