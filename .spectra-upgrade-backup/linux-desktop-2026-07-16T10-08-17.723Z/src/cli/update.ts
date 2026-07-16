@@ -1,6 +1,6 @@
 /** Production updater: transactional for git installs, signed-manifest based for packaged installs. */
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, rmSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { chmod, readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -39,22 +39,6 @@ function transactionalGitUpdate(root: string, checkOnly: boolean): number {
   const reset = run(root, "git", ["reset", "--hard", next])
   if (!reset.ok) return 1
   const steps: [string, string[]][] = [[npmCommand, ["ci"]], [npmCommand, ["run", "build"]], [npmCommand, ["run", "typecheck", "--if-present"]], [npmCommand, ["test"]]]
-
-  const nativeBinary = join(
-    root,
-    "desktop-native",
-    "target",
-    "release",
-    process.platform === "win32" ? "spectra-desktop.exe" : "spectra-desktop",
-  )
-  if (existsSync(join(root, "desktop-native", "Cargo.toml"))) {
-    if (run(root, "cargo", ["--version"]).ok) {
-      steps.push([npmCommand, ["run", "desktop:build"]])
-    } else if (existsSync(nativeBinary)) {
-      rmSync(nativeBinary, { force: true })
-      stdout.write(color.yellow("Rust is unavailable; removed the stale native Desktop binary. Browser fallback will be used.\n"))
-    }
-  }
   for (const [command, args] of steps) {
     const result = run(root, command, args)
     stdout.write(color.gray(result.output))

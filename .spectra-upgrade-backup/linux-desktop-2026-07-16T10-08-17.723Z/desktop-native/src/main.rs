@@ -15,39 +15,6 @@ use tao::{
 };
 use wry::WebViewBuilder;
 
-#[cfg(target_os = "linux")]
-fn configure_linux_webview() {
-    // Wry 0.45's raw-window-handle path is not reliable under native Wayland on
-    // every WebKitGTK/driver combination. XWayland is the stable compatibility
-    // path until the GTK-native builder is adopted.
-    if env::var_os("SPECTRA_NATIVE_WAYLAND").is_none() {
-        if env::var_os("GDK_BACKEND").is_none() {
-            env::set_var("GDK_BACKEND", "x11");
-        }
-        if env::var_os("WINIT_UNIX_BACKEND").is_none() {
-            env::set_var("WINIT_UNIX_BACKEND", "x11");
-        }
-    }
-
-    // WebKitGTK's DMA-BUF renderer can produce a completely white window on
-    // NVIDIA/GBM setups. This must be set before EventLoop/WebKit initializes.
-    if env::var_os("SPECTRA_ENABLE_DMABUF").is_none()
-        && env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
-    {
-        env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    }
-
-    // Optional last-resort software rendering for unusual drivers.
-    if env::var("SPECTRA_SOFTWARE_RENDERING").as_deref() == Ok("1")
-        && env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none()
-    {
-        env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn configure_linux_webview() {}
-
 fn is_allowed_url(url: &str) -> bool {
     url.starts_with("http://127.0.0.1:")
         || url.starts_with("http://localhost:")
@@ -137,8 +104,6 @@ fn start_packaged_engine(port: u16) {
 }
 
 fn main() -> wry::Result<()> {
-    configure_linux_webview();
-
     let port = env::var("SPECTRA_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())

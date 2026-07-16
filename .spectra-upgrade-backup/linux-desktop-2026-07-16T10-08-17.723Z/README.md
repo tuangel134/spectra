@@ -279,19 +279,3 @@ Creado por [Angel Collazo](https://github.com/tuangel134). Publicado bajo licenc
 ---
 
 **Spectra — del prompt a una implementación validada, recuperable y lista para producción.**
-
-
-## Linux/NVIDIA Desktop compatibility
-
-Spectra Desktop automatically uses the stable X11/XWayland path and disables
-WebKitGTK DMA-BUF rendering on Linux. This prevents `UnsupportedWindowHandle`
-and blank white windows accompanied by `Failed to create GBM buffer` on
-NVIDIA and mixed-GPU systems.
-
-Manual overrides remain available for diagnostics:
-
-```bash
-SPECTRA_NATIVE_WAYLAND=1 spectra desktop       # experimental native Wayland
-SPECTRA_ENABLE_DMABUF=1 spectra desktop        # re-enable DMA-BUF
-SPECTRA_SOFTWARE_RENDERING=1 spectra desktop   # last-resort software rendering
-```

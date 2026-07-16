@@ -1,9 +1,3 @@
-## Desktop hotfix
-
-- Fixed blank Linux Desktop windows and `UnsupportedWindowHandle` on Wayland/NVIDIA systems.
-- Rebuilds the native shell during `spectra update`, or removes stale binaries when Rust is unavailable.
-- Documents and diagnoses the Linux WebKitGTK compatibility mode.
-
 # Changelog
 
 ## 0.1.0 — Initial Release

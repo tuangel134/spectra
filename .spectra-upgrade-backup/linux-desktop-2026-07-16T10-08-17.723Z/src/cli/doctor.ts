@@ -90,10 +90,12 @@ export function runDoctor(rt: Runtime): number {
 
   // Desktop native binary (informational)
   const exe = IS_WINDOWS ? "spectra-desktop.exe" : "spectra-desktop"
-  const desktopDetail = process.platform === "linux"
-    ? `native binary (${exe}) uses X11/XWayland with WebKit DMA-BUF compatibility; browser fallback remains available`
-    : `native binary (${exe}) with browser fallback`
-  add("ok", "Desktop", desktopDetail)
+  add(
+    "ok",
+    "Desktop",
+    `'spectra desktop' works via browser fallback; native binary (${exe}) auto-downloads on first run`,
+  )
+
   // ---- print ----
   stdout.write(`${BRAND} ${color.gray("environment health check")}\n\n`)
   const icon = (s: Status): string =>

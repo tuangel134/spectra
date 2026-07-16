@@ -212,14 +212,6 @@ export async function launchDesktop(rt: Runtime | undefined, projectRoot: string
       SPECTRA_URL: url,
       SPECTRA_CWD: projectRoot,
       SPECTRA_TITLE: "Spectra — " + (basename(projectRoot) || "Workspace"),
-      ...(platform() === "linux"
-        ? {
-            GDK_BACKEND: process.env["GDK_BACKEND"] ?? "x11",
-            WINIT_UNIX_BACKEND: process.env["WINIT_UNIX_BACKEND"] ?? "x11",
-            WEBKIT_DISABLE_DMABUF_RENDERER:
-              process.env["WEBKIT_DISABLE_DMABUF_RENDERER"] ?? "1",
-          }
-        : {}),
     })
     detach()
     return
