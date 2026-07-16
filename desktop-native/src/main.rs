@@ -1,4 +1,5 @@
 // Spectra 1.0 native desktop shell with a self-starting local engine.
+
 use std::{
     env,
     net::{SocketAddr, TcpStream},
@@ -17,9 +18,17 @@ use wry::WebViewBuilder;
 
 #[cfg(target_os = "linux")]
 fn configure_linux_webview() {
-    // Wry 0.45's raw-window-handle path is not reliable under native Wayland on
-    // every WebKitGTK/driver combination. XWayland is the stable compatibility
-    // path until the GTK-native builder is adopted.
+    // WebKitGTK's DMA-BUF renderer can produce a completely white window on
+    // NVIDIA/GBM setups. Configure this before Tao or WebKit initializes.
+    if env::var_os("SPECTRA_ENABLE_DMABUF").is_none()
+        && env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+    {
+        env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
+    // Keep X11/XWayland as the conservative default for older drivers. The
+    // GTK-native Wry constructor below also supports native Wayland when the
+    // user explicitly enables it.
     if env::var_os("SPECTRA_NATIVE_WAYLAND").is_none() {
         if env::var_os("GDK_BACKEND").is_none() {
             env::set_var("GDK_BACKEND", "x11");
@@ -29,15 +38,6 @@ fn configure_linux_webview() {
         }
     }
 
-    // WebKitGTK's DMA-BUF renderer can produce a completely white window on
-    // NVIDIA/GBM setups. This must be set before EventLoop/WebKit initializes.
-    if env::var_os("SPECTRA_ENABLE_DMABUF").is_none()
-        && env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
-    {
-        env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    }
-
-    // Optional last-resort software rendering for unusual drivers.
     if env::var("SPECTRA_SOFTWARE_RENDERING").as_deref() == Ok("1")
         && env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none()
     {
@@ -85,13 +85,17 @@ fn start_packaged_engine(port: u16) {
     if core_ready(port) {
         return;
     }
-    let Ok(exe) = env::current_exe() else { return };
+
+    let Ok(exe) = env::current_exe() else {
+        return;
+    };
     let Some(engine) = engine_candidates(&exe)
         .into_iter()
         .find(|path| path.is_file())
     else {
         return;
     };
+
     let runtime_name = if cfg!(windows) { "node.exe" } else { "node" };
     let parent = exe.parent().unwrap_or_else(|| Path::new("."));
     let bundled_runtime = [
@@ -112,11 +116,13 @@ fn start_packaged_engine(port: u16) {
     ]
     .into_iter()
     .find(|path| path.is_file());
+
     let node = env::var_os("SPECTRA_NODE")
         .map(PathBuf::from)
         .or(bundled_runtime)
         .unwrap_or_else(|| PathBuf::from(runtime_name));
     let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
     let _ = Command::new(node)
         .arg(engine)
         .arg("core-daemon")
@@ -128,6 +134,7 @@ fn start_packaged_engine(port: u16) {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn();
+
     for _ in 0..50 {
         if core_ready(port) {
             break;
@@ -145,6 +152,7 @@ fn main() -> wry::Result<()> {
         .unwrap_or(4123);
     let url =
         env::var("SPECTRA_URL").unwrap_or_else(|_| format!("http://127.0.0.1:{port}/desktop"));
+
     if !is_allowed_url(&url) {
         eprintln!("Spectra Desktop refused a non-loopback URL. Set SPECTRA_ALLOW_REMOTE=1 only if you understand the risk.");
         std::process::exit(2);
@@ -152,7 +160,9 @@ fn main() -> wry::Result<()> {
     if env::var("SPECTRA_URL").is_err() {
         start_packaged_engine(port);
     }
-    let title = env::var("SPECTRA_TITLE").unwrap_or_else(|_| "Spectra Desktop 1.0".to_string());
+
+    let title =
+        env::var("SPECTRA_TITLE").unwrap_or_else(|_| "Spectra Desktop 1.0".to_string());
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(title)
@@ -160,10 +170,25 @@ fn main() -> wry::Result<()> {
         .with_min_inner_size(LogicalSize::new(960.0, 640.0))
         .build(&event_loop)
         .expect("failed to create window");
-    let _webview = WebViewBuilder::new(&window)
+
+    // Wry 0.45 has two constructors. The raw-window-handle constructor is
+    // X11-only and can create a visible but permanently white WebKit surface.
+    // Tao is GTK-backed on Linux, so attach Wry directly to Tao's GTK window.
+    #[cfg(target_os = "linux")]
+    let builder = {
+        use tao::platform::unix::WindowExtUnix;
+        use wry::WebViewBuilderExtUnix;
+        WebViewBuilder::new_gtk(window.gtk_window())
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let builder = WebViewBuilder::new(&window);
+
+    let _webview = builder
         .with_url(&url)
         .with_navigation_handler(|target| is_allowed_url(&target))
         .build()?;
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         if let Event::WindowEvent {

@@ -23,3 +23,6 @@ vscode-extension/out/
 
 # Spectra Core durable local state
 .spectra/state/
+
+# Local transactional upgrade backups
+.spectra-upgrade-backup/

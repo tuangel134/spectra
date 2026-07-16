@@ -1,3 +1,9 @@
+## Linux Desktop GTK hotfix
+
+- Uses Wry's GTK-native WebView constructor on Linux instead of the raw X11 window handle.
+- Fixes native windows that opened successfully but rendered permanently white.
+- Removes accidentally committed local upgrade backups and ignores them permanently.
+
 ## Desktop hotfix
 
 - Fixed blank Linux Desktop windows and `UnsupportedWindowHandle` on Wayland/NVIDIA systems.
